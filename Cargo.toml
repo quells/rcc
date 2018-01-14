@@ -1,5 +1,5 @@
 [package]
-name = "cc"
+name = "rcc"
 version = "0.1.0"
 authors = ["Kai Wells <support@kaiwells.me>"]
 

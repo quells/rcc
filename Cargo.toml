@@ -1,0 +1,6 @@
+[package]
+name = "cc"
+version = "0.1.0"
+authors = ["Kai Wells <support@kaiwells.me>"]
+
+[dependencies]

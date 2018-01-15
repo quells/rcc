@@ -1,14 +1,15 @@
+use std::clone::Clone;
+use std::collections::HashMap;
+use std::collections::LinkedList;
 use std::env;
+use std::error::Error;
 use std::fmt;
 use std::fs::File;
 use std::io::Read;
+use std::io::prelude::*;
 use std::path::Path;
-use std::clone::Clone;
-use std::error::Error;
-use std::str::FromStr;
 use std::process::exit;
-use std::collections::HashMap;
-use std::collections::LinkedList;
+use std::str::FromStr;
 
 // https://stackoverflow.com/questions/25576748/how-to-compare-enum-without-pattern-matching
 macro_rules! matches(
@@ -21,22 +22,50 @@ macro_rules! matches(
 );
 
 pub fn run(config: Config) -> Result<(), Box<Error>> {
-    let mut f = File::open(config.src_filename)?;
-
+    println!("Reading source from {}", config.src_filename);
+    let mut sf = File::open(config.src_filename)?;
     let mut contents = String::new();
-    f.read_to_string(&mut contents)?;
-
+    sf.read_to_string(&mut contents)?;
     let characters = (&contents).as_bytes();
 
-    println!("Lexing {} characters...", characters.len());
+    println!("Lexing {} characters", characters.len());
     let tokens = lex(characters);
 
-    println!("Parsing {} tokens...", tokens.len());
+    println!("Parsing {} tokens", tokens.len());
     let ast = parse(tokens)?;
 
-    println!("{}", ast);
+    println!("Generating code for:\n{}", ast);
+    let asm = generate(ast);
+    println!("{}", asm);
+
+    println!("Writing code to {}", config.dest_filename);
+    let mut df = File::create(config.dest_filename)?;
+    df.write((&asm).as_bytes())?;
 
     Ok(())
+}
+
+fn generate(program: ParseProgram) -> String {
+    let mut asm = String::new();
+    match program {
+        ParseProgram::Function(f) => {
+            match f {
+                ParseFunction::IntVoid(id, stmt) => {
+                    asm = format!("{}  .global _{}\n_{}:\n", asm, id, id);
+                    match stmt {
+                        ParseStatement::Return(exp) => {
+                            match exp {
+                                ParseExp::Int(i) => {
+                                    asm = format!("{}  movl    ${}, %eax\n  ret\n", asm, i);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    };
+    return asm
 }
 
 enum ParseProgram {

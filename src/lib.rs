@@ -35,44 +35,64 @@ pub fn run(config: Config) -> Result<(), Box<Error>> {
     let ast = parse(tokens)?;
 
     println!("Generating code for:\n{}", ast);
-    // let asm = generate(ast);
-    // println!("{}", asm);
-    //
-    // println!("Writing code to {}", config.dest_filename);
-    // let mut df = File::create(config.dest_filename)?;
-    // df.write((&asm).as_bytes())?;
+    let asm = generate(ast);
+    println!("{}", asm);
+
+    println!("Writing code to {}", config.dest_filename);
+    let mut df = File::create(config.dest_filename)?;
+    df.write((&asm).as_bytes())?;
 
     Ok(())
 }
 
-fn debug_tokens(tokens: LinkedList<LexToken>) {
-    for t in tokens {
-        println!("{}", t)
+fn _generate_unop(op: ParseUnOp) -> String {
+    match op {
+        ParseUnOp::Negation => format!("  neg     %eax\n"),
+        ParseUnOp::BitwiseComplement => format!("  not     %eax\n"),
+        ParseUnOp::LogicalNegation => format!("  cmpl    $0, %eax\n  movl    $0, %eax\n  sete    %al\n"),
     }
 }
 
-fn generate(program: ParseProgram) -> String {
-    let mut asm = String::new();
-    match program {
-        ParseProgram::Function(f) => {
-            match f {
-                ParseFunction::IntVoid(id, stmt) => {
-                    asm = format!("{}  .global _{}\n_{}:\n", asm, id, id);
-                    match stmt {
-                        ParseStatement::Return(exp) => {
-                            match exp {
-                                ParseExp::Int(i) => {
-                                    asm = format!("{}  movl    ${}, %eax\n  ret\n", asm, i);
-                                },
-                                ParseExp::UnOp(op, exp) => (), // TODO
-                            }
-                        }
-                    }
-                }
-            }
+fn _generate_expression(expression: ParseExp) -> String {
+    match expression {
+        ParseExp::Int(i) => {
+            format!("  movl    ${}, %eax\n", i)
+        },
+        ParseExp::UnOp(op, operand) => {
+            let operand_asm = _generate_expression(*operand);
+            let op_asm = _generate_unop(op);
+            format!("{}{}", operand_asm, op_asm)
         }
+    }
+}
+
+fn _generate_statement(statement: ParseStatement) -> String {
+    match statement {
+        ParseStatement::Return(exp) => {
+            let exp_asm = _generate_expression(exp);
+            format!("{}  ret\n", exp_asm)
+        },
+    }
+}
+
+fn _generate_function(function: ParseFunction) -> String {
+    match function {
+        ParseFunction::IntVoid(id, stmt) => {
+            let stmt_asm = _generate_statement(stmt);
+            format!("_{}\n_{}:\n{}", id, id, stmt_asm)
+        },
+    }
+}
+
+fn _generate_program(program: ParseProgram) -> String {
+    let f_asm = match program {
+        ParseProgram::Function(f) => _generate_function(f),
     };
-    return asm
+    format!("  .global {}", f_asm)
+}
+
+fn generate(program: ParseProgram) -> String {
+    _generate_program(program)
 }
 
 enum ParseProgram {

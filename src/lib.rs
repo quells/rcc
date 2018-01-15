@@ -3,11 +3,22 @@ use std::fmt;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
+use std::clone::Clone;
 use std::error::Error;
 use std::str::FromStr;
 use std::process::exit;
 use std::collections::HashMap;
 use std::collections::LinkedList;
+
+// https://stackoverflow.com/questions/25576748/how-to-compare-enum-without-pattern-matching
+macro_rules! matches(
+    ($e:expr, $p:pat) => {
+        match $e {
+            $p => true,
+            _ => false
+        }
+    }
+);
 
 pub fn run(config: Config) -> Result<(), Box<Error>> {
     let mut f = File::open(config.src_filename)?;
@@ -16,14 +27,169 @@ pub fn run(config: Config) -> Result<(), Box<Error>> {
     f.read_to_string(&mut contents)?;
 
     let characters = (&contents).as_bytes();
+
+    println!("Lexing {} characters...", characters.len());
     let tokens = lex(characters);
-    for t in tokens.iter() {
-        println!("{}", t);
-    }
+
+    println!("Parsing {} tokens...", tokens.len());
+    let ast = parse(tokens)?;
+
+    println!("{}", ast);
 
     Ok(())
 }
 
+enum ParseProgram {
+    Function(ParseFunction),
+}
+impl fmt::Display for ParseProgram {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &ParseProgram::Function(ref func) => write!(f, "{}", func),
+        }
+    }
+}
+
+enum ParseFunction {
+    IntVoid(String, ParseStatement), // identifier, statement
+}
+impl fmt::Display for ParseFunction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &ParseFunction::IntVoid(ref id, ref s) => write!(f, "int {}:<{}>", id, s),
+        }
+    }
+}
+
+enum ParseStatement {
+    Return(ParseExp),
+}
+impl fmt::Display for ParseStatement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &ParseStatement::Return(ref e) => write!(f, "return({})", e),
+        }
+    }
+}
+
+enum ParseExp {
+    Int(i32),
+}
+impl fmt::Display for ParseExp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &ParseExp::Int(ref i) => write!(f, "{}", i),
+        }
+    }
+}
+
+fn _eat(mut tokens: LinkedList<LexToken>, _expect: LexToken) -> Result<LinkedList<LexToken>, &'static str> {
+    match tokens.pop_front() {
+        Some(token) => {
+            if matches!(token, _expect) {
+                return Ok(tokens)
+            }
+            // println!("expected {}, found {}", expect, token);
+            return Err("found unexpected token")
+        },
+        None => Err("reached end of tokens")
+    }
+}
+
+fn _parse_exp(mut tokens: LinkedList<LexToken>) -> Result<(ParseExp, LinkedList<LexToken>), &'static str> {
+    match tokens.pop_front() {
+        Some(exp_val) => {
+            match exp_val {
+                LexToken::Integer(val) => Ok((ParseExp::Int(val), tokens)),
+                _ => Err("missing expected integer")
+            }
+        },
+        None => Err("missing expected expression value")
+    }
+}
+
+fn _parse_statement(tokens: LinkedList<LexToken>) -> Result<(ParseStatement, LinkedList<LexToken>), &'static str> {
+    // eventually: parse assignment
+    match _eat(tokens, LexToken::Keyword(LexTokenKeyword::Return)) {
+        Ok(remaining_tokens) => {
+            match _parse_exp(remaining_tokens) {
+                Ok((parsed_exp, remaining_tokens)) => {
+                    match _eat(remaining_tokens, LexToken::Semicolon) {
+                        Ok(remaining_tokens) => Ok((ParseStatement::Return(parsed_exp), remaining_tokens)),
+                        Err(e) => Err(e)
+                    }
+                },
+                Err(e) => Err(e)
+            }
+        },
+        Err(e) => Err(e)
+    }
+}
+
+fn _parse_function(tokens: LinkedList<LexToken>) -> Result<(ParseFunction, LinkedList<LexToken>), &'static str> {
+    match _eat(tokens, LexToken::Keyword(LexTokenKeyword::Int)) {
+        Ok(mut remaining_tokens) => {
+            match remaining_tokens.pop_front() {
+                Some(fn_id) => {
+                    match fn_id {
+                        LexToken::Identifier(id) => {
+                            match _eat(remaining_tokens, LexToken::LParen) {
+                                Ok(remaining_tokens) => {
+                                    // eventually: parse function paramenters
+                                    match _eat(remaining_tokens, LexToken::RParen) {
+                                        Ok(remaining_tokens) => {
+                                            match _eat(remaining_tokens, LexToken::LBracket) {
+                                                Ok(remaining_tokens) => {
+                                                    // eventually: parse list of statements
+                                                    match _parse_statement(remaining_tokens) {
+                                                        Ok((parsed_statement, remaining_tokens)) => {
+                                                            match _eat(remaining_tokens, LexToken::RBracket) {
+                                                                Ok(remaining_tokens) => Ok((ParseFunction::IntVoid(id, parsed_statement), remaining_tokens)),
+                                                                Err(e) => Err(e)
+                                                            }
+                                                        },
+                                                        Err(e) => Err(e)
+                                                    }
+                                                },
+                                                Err(e) => Err(e)
+                                            }
+                                        },
+                                        Err(e) => Err(e)
+                                    }
+                                },
+                                Err(e) => Err(e)
+                            }
+                        },
+                        _ => Err("missing expected identifier token")
+                    }
+                },
+                None => Err("missing expected function identifier")
+            }
+        },
+        Err(e) => Err(e)
+    }
+}
+
+fn _parse_program(tokens: LinkedList<LexToken>) -> Result<(ParseProgram, LinkedList<LexToken>), &'static str> {
+    match _parse_function(tokens) {
+        Ok((function, remaining)) => Ok((ParseProgram::Function(function), remaining)),
+        Err(err) => Err(err),
+    }
+}
+
+fn parse(tokens: LinkedList<LexToken>) -> Result<ParseProgram, &'static str> {
+    match _parse_program(tokens) {
+        Ok((program, remaining)) => {
+            match remaining.len() {
+                0 => Ok(program),
+                _ => Err("unexpected tokens found after parsing program"),
+            }
+        },
+        Err(err) => Err(err),
+    }
+}
+
+#[derive(PartialEq)]
 enum LexTokenKeyword {
     Int,
     Return,
@@ -38,6 +204,7 @@ impl fmt::Display for LexTokenKeyword {
     }
 }
 
+#[derive(PartialEq)]
 enum LexToken {
     Unknown(u8),
     Keyword(LexTokenKeyword),
@@ -67,6 +234,51 @@ impl fmt::Display for LexToken {
         }
     }
 }
+
+// fn LexTokensEqual(a: LexToken, b: LexToken) -> bool {
+//     match a {
+//         LexToken::Unknown => match b {
+//             LexToken::Unknown => true,
+//             _ => false
+//         },
+//         LexToken::Keyword(ka) => match b {
+//             LexToken::Keyword(kb) => ka == kb,
+//             _ => false
+//         },
+//         Identifier => match b {
+//             Identifier => true,
+//             _ => false
+//         },
+//         Integer => match b {
+//             Integer => true,
+//             _ => false
+//         },
+//         Semicolon => match b {
+//             Semicolon => true,
+//             _ => false
+//         },
+//         LParen => match b {
+//             LParen => true,
+//             _ => false
+//         },
+//         RParen => match b {
+//             RParen => true,
+//             _ => false
+//         },
+//         LBracket => match b {
+//             LBracket => true,
+//             _ => false
+//         },
+//         RBracket => match b {
+//             RBracket => true,
+//             _ => false
+//         },
+//         Whitespace => match b {
+//             Whitespace => true,
+//             _ => false
+//         }
+//     }
+// }
 
 fn lex(src: &[u8]) -> LinkedList<LexToken> {
     let mut tokens: LinkedList<LexToken> = LinkedList::new();

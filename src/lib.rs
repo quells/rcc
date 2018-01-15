@@ -30,12 +30,11 @@ pub fn run(config: Config) -> Result<(), Box<Error>> {
 
     println!("Lexing {} characters", characters.len());
     let tokens = lex(characters);
-    debug_tokens(tokens);
 
-    // println!("Parsing {} tokens", tokens.len());
-    // let ast = parse(tokens)?;
-    //
-    // println!("Generating code for:\n{}", ast);
+    println!("Parsing {} tokens", tokens.len());
+    let ast = parse(tokens)?;
+
+    println!("Generating code for:\n{}", ast);
     // let asm = generate(ast);
     // println!("{}", asm);
     //
@@ -64,7 +63,8 @@ fn generate(program: ParseProgram) -> String {
                             match exp {
                                 ParseExp::Int(i) => {
                                     asm = format!("{}  movl    ${}, %eax\n  ret\n", asm, i);
-                                }
+                                },
+                                ParseExp::UnOp(op, exp) => (), // TODO
                             }
                         }
                     }
@@ -110,11 +110,28 @@ impl fmt::Display for ParseStatement {
 
 enum ParseExp {
     Int(i32),
+    UnOp(ParseUnOp, Box<ParseExp>),
 }
 impl fmt::Display for ParseExp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &ParseExp::Int(ref i) => write!(f, "{}", i),
+            &ParseExp::UnOp(ref op, ref exp) => write!(f, "{}{}", op, exp),
+        }
+    }
+}
+
+enum ParseUnOp {
+    Negation,
+    BitwiseComplement,
+    LogicalNegation,
+}
+impl fmt::Display for ParseUnOp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &ParseUnOp::Negation => write!(f, "-"),
+            &ParseUnOp::BitwiseComplement => write!(f, "~"),
+            &ParseUnOp::LogicalNegation => write!(f, "!"),
         }
     }
 }
@@ -137,7 +154,34 @@ fn _parse_exp(mut tokens: LinkedList<LexToken>) -> Result<(ParseExp, LinkedList<
         Some(exp_val) => {
             match exp_val {
                 LexToken::Integer(val) => Ok((ParseExp::Int(val), tokens)),
-                _ => Err("missing expected integer")
+                LexToken::Exclamation => {
+                    match _parse_exp(tokens) {
+                        Ok((_operand, remaining_tokens)) => {
+                            let operand = Box::new(_operand);
+                            Ok((ParseExp::UnOp(ParseUnOp::LogicalNegation, operand), remaining_tokens))
+                        },
+                        Err(e) => Err(e)
+                    }
+                },
+                LexToken::Tilde => {
+                    match _parse_exp(tokens) {
+                        Ok((_operand, remaining_tokens)) => {
+                            let operand = Box::new(_operand);
+                            Ok((ParseExp::UnOp(ParseUnOp::BitwiseComplement, operand), remaining_tokens))
+                        },
+                        Err(e) => Err(e)
+                    }
+                },
+                LexToken::Minus => {
+                    match _parse_exp(tokens) {
+                        Ok((_operand, remaining_tokens)) => {
+                            let operand = Box::new(_operand);
+                            Ok((ParseExp::UnOp(ParseUnOp::Negation, operand), remaining_tokens))
+                        },
+                        Err(e) => Err(e)
+                    }
+                },
+                _ => Err("missing expected integer or unary operation")
             }
         },
         None => Err("missing expected expression value")

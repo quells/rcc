@@ -3,3 +3,10 @@ Part 1:
 <function> ::= "int" <id> "(" ")" "{" <statement> "}"
 <statement> ::= "return" <exp> ";"
 <exp> ::= <int>
+
+Part 2:
+<program> ::= <function>
+<function> ::= "int" <id> "(" ")" "{" <statement> "}"
+<statement> ::= "return" <exp> ";"
+<exp> ::= <unop> <exp> | <int>
+<unop> ::= "!" | "~" | "-"

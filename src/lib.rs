@@ -30,17 +30,20 @@ pub fn run(config: Config) -> Result<(), Box<Error>> {
 
     println!("Lexing {} characters", characters.len());
     let tokens = lex(characters);
+    for t in tokens {
+        println!("{}", t)
+    }
 
-    println!("Parsing {} tokens", tokens.len());
-    let ast = parse(tokens)?;
-
-    println!("Generating code for:\n{}", ast);
-    let asm = generate(ast);
-    println!("{}", asm);
-
-    println!("Writing code to {}", config.dest_filename);
-    let mut df = File::create(config.dest_filename)?;
-    df.write((&asm).as_bytes())?;
+    // println!("Parsing {} tokens", tokens.len());
+    // let ast = parse(tokens)?;
+    //
+    // println!("Generating code for:\n{}", ast);
+    // let asm = generate(ast);
+    // println!("{}", asm);
+    //
+    // println!("Writing code to {}", config.dest_filename);
+    // let mut df = File::create(config.dest_filename)?;
+    // df.write((&asm).as_bytes())?;
 
     Ok(())
 }
@@ -311,7 +314,10 @@ enum LexToken {
     Identifier(String),
     Integer(i32),
     Semicolon,
+    Plus,
     Minus,
+    Star,
+    Slash,
     Tilde,
     Exclamation,
     LParen,
@@ -329,7 +335,10 @@ impl fmt::Display for LexToken {
             &LexToken::Identifier(ref id) => write!(f, "<ID: {}>", id),
             &LexToken::Integer(ref i) => write!(f, "<INT: {}>", i),
             &LexToken::Semicolon => write!(f, "<SEMICOLON>"),
+            &LexToken::Plus => write!(f, "<PLUS>"),
             &LexToken::Minus => write!(f, "<MINUS>"),
+            &LexToken::Star => write!(f, "<STAR>"),
+            &LexToken::Slash => write!(f, "<SLASH>"),
             &LexToken::Tilde => write!(f, "<TILDE>"),
             &LexToken::Exclamation => write!(f, "<EXCLAMATION>"),
             &LexToken::LParen => write!(f, "<LPAREN>"),
@@ -354,7 +363,10 @@ fn lex(src: &[u8]) -> LinkedList<LexToken> {
     single_chars.insert(0x21, LexToken::Exclamation);
     single_chars.insert(0x28, LexToken::LParen);
     single_chars.insert(0x29, LexToken::RParen);
+    single_chars.insert(0x2A, LexToken::Star);
+    single_chars.insert(0x2B, LexToken::Plus);
     single_chars.insert(0x2D, LexToken::Minus);
+    single_chars.insert(0x2F, LexToken::Slash);
     single_chars.insert(0x3B, LexToken::Semicolon);
     single_chars.insert(0x7B, LexToken::LBracket);
     single_chars.insert(0x7D, LexToken::RBracket);
@@ -376,7 +388,7 @@ fn lex(src: &[u8]) -> LinkedList<LexToken> {
                         if let Ok(n) = i32::from_str(s) {
                             tokens.push_back(LexToken::Integer(n));
                         } else {
-                            panic!("could not parse integer: {}", s)
+                            panic!("could not tokenize integer: {}", s)
                         }
                     }
                     buffer = Vec::new();
@@ -390,7 +402,10 @@ fn lex(src: &[u8]) -> LinkedList<LexToken> {
                     &LexToken::LBracket => tokens.push_back(LexToken::LBracket),
                     &LexToken::RBracket => tokens.push_back(LexToken::RBracket),
                     &LexToken::Exclamation => tokens.push_back(LexToken::Exclamation),
+                    &LexToken::Plus => tokens.push_back(LexToken::Plus),
                     &LexToken::Minus => tokens.push_back(LexToken::Minus),
+                    &LexToken::Star => tokens.push_back(LexToken::Star),
+                    &LexToken::Slash => tokens.push_back(LexToken::Slash),
                     &LexToken::Tilde => tokens.push_back(LexToken::Tilde),
                     _ => panic!("single char token not implemented for {}", single_char_token),
                 }

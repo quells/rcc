@@ -264,51 +264,6 @@ impl fmt::Display for LexToken {
     }
 }
 
-// fn LexTokensEqual(a: LexToken, b: LexToken) -> bool {
-//     match a {
-//         LexToken::Unknown => match b {
-//             LexToken::Unknown => true,
-//             _ => false
-//         },
-//         LexToken::Keyword(ka) => match b {
-//             LexToken::Keyword(kb) => ka == kb,
-//             _ => false
-//         },
-//         Identifier => match b {
-//             Identifier => true,
-//             _ => false
-//         },
-//         Integer => match b {
-//             Integer => true,
-//             _ => false
-//         },
-//         Semicolon => match b {
-//             Semicolon => true,
-//             _ => false
-//         },
-//         LParen => match b {
-//             LParen => true,
-//             _ => false
-//         },
-//         RParen => match b {
-//             RParen => true,
-//             _ => false
-//         },
-//         LBracket => match b {
-//             LBracket => true,
-//             _ => false
-//         },
-//         RBracket => match b {
-//             RBracket => true,
-//             _ => false
-//         },
-//         Whitespace => match b {
-//             Whitespace => true,
-//             _ => false
-//         }
-//     }
-// }
-
 fn lex(src: &[u8]) -> LinkedList<LexToken> {
     let mut tokens: LinkedList<LexToken> = LinkedList::new();
     let mut buffer: Vec<u8> = Vec::new();

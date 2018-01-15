@@ -30,19 +30,26 @@ pub fn run(config: Config) -> Result<(), Box<Error>> {
 
     println!("Lexing {} characters", characters.len());
     let tokens = lex(characters);
+    debug_tokens(tokens);
 
-    println!("Parsing {} tokens", tokens.len());
-    let ast = parse(tokens)?;
-
-    println!("Generating code for:\n{}", ast);
-    let asm = generate(ast);
-    println!("{}", asm);
-
-    println!("Writing code to {}", config.dest_filename);
-    let mut df = File::create(config.dest_filename)?;
-    df.write((&asm).as_bytes())?;
+    // println!("Parsing {} tokens", tokens.len());
+    // let ast = parse(tokens)?;
+    //
+    // println!("Generating code for:\n{}", ast);
+    // let asm = generate(ast);
+    // println!("{}", asm);
+    //
+    // println!("Writing code to {}", config.dest_filename);
+    // let mut df = File::create(config.dest_filename)?;
+    // df.write((&asm).as_bytes())?;
 
     Ok(())
+}
+
+fn debug_tokens(tokens: LinkedList<LexToken>) {
+    for t in tokens {
+        println!("{}", t)
+    }
 }
 
 fn generate(program: ParseProgram) -> String {
@@ -240,6 +247,9 @@ enum LexToken {
     Identifier(String),
     Integer(i32),
     Semicolon,
+    Minus,
+    Tilde,
+    Exclamation,
     LParen,
     RParen,
     LBracket,
@@ -255,6 +265,9 @@ impl fmt::Display for LexToken {
             &LexToken::Identifier(ref id) => write!(f, "<ID: {}>", id),
             &LexToken::Integer(ref i) => write!(f, "<INT: {}>", i),
             &LexToken::Semicolon => write!(f, "<SEMICOLON>"),
+            &LexToken::Minus => write!(f, "<MINUS>"),
+            &LexToken::Tilde => write!(f, "<TILDE>"),
+            &LexToken::Exclamation => write!(f, "<EXCLAMATION>"),
             &LexToken::LParen => write!(f, "<LPAREN>"),
             &LexToken::RParen => write!(f, "<RPAREN>"),
             &LexToken::LBracket => write!(f, "<LBRACKET>"),
@@ -274,11 +287,14 @@ fn lex(src: &[u8]) -> LinkedList<LexToken> {
     single_chars.insert(0x0A, LexToken::Whitespace);
     single_chars.insert(0x0D, LexToken::Whitespace);
     single_chars.insert(0x20, LexToken::Whitespace);
+    single_chars.insert(0x21, LexToken::Exclamation);
     single_chars.insert(0x28, LexToken::LParen);
     single_chars.insert(0x29, LexToken::RParen);
+    single_chars.insert(0x2D, LexToken::Minus);
     single_chars.insert(0x3B, LexToken::Semicolon);
     single_chars.insert(0x7B, LexToken::LBracket);
     single_chars.insert(0x7D, LexToken::RBracket);
+    single_chars.insert(0x7E, LexToken::Tilde);
 
     for c in src.iter() {
         match single_chars.get(c) {
@@ -309,6 +325,9 @@ fn lex(src: &[u8]) -> LinkedList<LexToken> {
                     &LexToken::Semicolon => tokens.push_back(LexToken::Semicolon),
                     &LexToken::LBracket => tokens.push_back(LexToken::LBracket),
                     &LexToken::RBracket => tokens.push_back(LexToken::RBracket),
+                    &LexToken::Exclamation => tokens.push_back(LexToken::Exclamation),
+                    &LexToken::Minus => tokens.push_back(LexToken::Minus),
+                    &LexToken::Tilde => tokens.push_back(LexToken::Tilde),
                     _ => panic!("single char token not implemented for {}", single_char_token),
                 }
             },

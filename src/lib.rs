@@ -34,12 +34,12 @@ pub fn run(config: Config) -> Result<(), Box<Error>> {
     let ast = parse(tokens)?;
 
     println!("Generating code for:\n{}", ast);
-    // let asm = generate(ast);
-    // println!("{}", asm);
-    //
-    // println!("Writing code to {}", config.dest_filename);
-    // let mut df = File::create(config.dest_filename)?;
-    // df.write((&asm).as_bytes())?;
+    let asm = generate(ast);
+    println!("{}", asm);
+
+    println!("Writing code to {}", config.dest_filename);
+    let mut df = File::create(config.dest_filename)?;
+    df.write((&asm).as_bytes())?;
 
     Ok(())
 }
@@ -52,17 +52,53 @@ fn _generate_unop(op: ParseUnOp) -> String {
     }
 }
 
+fn _generate_factor(factor: ParseFactor) -> String {
+    match factor {
+        ParseFactor::Exp(e) => _generate_expression(*e),
+        ParseFactor::UnOp(op, x) => {
+            let x_asm = _generate_factor(*x);
+            let op_asm = _generate_unop(op);
+            format!("{}{}", x_asm, op_asm)
+        },
+        ParseFactor::Int(i) => format!("  movl    ${}, %eax\n", i),
+    }
+}
+
+fn _generate_term(term: ParseTerm) -> String {
+    match term {
+        ParseTerm::Factor(f) => _generate_factor(*f),
+        ParseTerm::BinOp(lhs, op, rhs) => {
+            match op {
+                ParseBinOp::Multiplication => {
+                    let lhs_str = _generate_factor(*lhs);
+                    let rhs_str = _generate_factor(*rhs);
+                    format!("{}  pushl   %eax\n{}  popl    %ecx\n  imul    %ecx, %eax\n", lhs_str, rhs_str)
+                },
+                ParseBinOp::Division => {
+                    panic!("term division not implemented")
+                },
+                _ => panic!("expected multiplication or division, found {}", op)
+            }
+        }
+    }
+}
+
 fn _generate_expression(expression: ParseExp) -> String {
     match expression {
-        _ => panic!("not implemented")
-        // ParseExp::Int(i) => {
-        //     format!("  movl    ${}, %eax\n", i)
-        // },
-        // ParseExp::UnOp(op, operand) => {
-        //     let operand_asm = _generate_expression(*operand);
-        //     let op_asm = _generate_unop(op);
-        //     format!("{}{}", operand_asm, op_asm)
-        // }
+        ParseExp::Term(t) => _generate_term(*t),
+        ParseExp::BinOp(lhs, op, rhs) => {
+            match op {
+                ParseBinOp::Addition => {
+                    let lhs_str = _generate_term(*lhs);
+                    let rhs_str = _generate_term(*rhs);
+                    format!("{}  pushl   %eax\n{}  popl    %ecx\n  addl    %ecx, %eax\n", lhs_str, rhs_str)
+                },
+                ParseBinOp::Subtraction => {
+                    panic!("exp subtraction not implemented")
+                },
+                _ => panic!("expected addition or subtraction, found {}", op)
+            }
+        },
     }
 }
 
@@ -88,7 +124,7 @@ fn _generate_program(program: ParseProgram) -> String {
     let f_asm = match program {
         ParseProgram::Function(f) => _generate_function(f),
     };
-    format!("  .global {}", f_asm)
+    format!("  .align 4\n  .global {}", f_asm)
 }
 
 fn generate(program: ParseProgram) -> String {
@@ -123,7 +159,7 @@ enum ParseStatement {
 impl fmt::Display for ParseStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &ParseStatement::Return(ref e) => write!(f, "return({})", e),
+            &ParseStatement::Return(ref e) => write!(f, "return {}", e),
         }
     }
 }
@@ -136,7 +172,7 @@ impl fmt::Display for ParseExp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &ParseExp::Term(ref t) => write!(f, "{}", t),
-            &ParseExp::BinOp(ref a, ref op, ref b) => write!(f, "({}{}{})", a, op, b),
+            &ParseExp::BinOp(ref a, ref op, ref b) => write!(f, "exp({}{}{})", a, op, b),
         }
     }
 }
@@ -149,7 +185,7 @@ impl fmt::Display for ParseTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &ParseTerm::Factor(ref x) => write!(f, "{}", x),
-            &ParseTerm::BinOp(ref a, ref op, ref b) => write!(f, "({}{}{})", a, op, b),
+            &ParseTerm::BinOp(ref a, ref op, ref b) => write!(f, "term({}{}{})", a, op, b),
         }
     }
 }
@@ -312,9 +348,9 @@ fn _parse_exp(tokens: Vec<LexToken>) -> Result<(ParseExp, Vec<LexToken>), &'stat
                                 let _ = copy_remaining_tokens.remove(0); // plus
                                 match _parse_term(copy_remaining_tokens) {
                                     Ok((rhs, mut __remaining_tokens)) => {
-                                        let __lhs = ParseFactor::Exp(Box::new(ParseExp::Term(lhs)));
-                                        let __rhs = ParseFactor::Exp(Box::new(ParseExp::Term(Box::new(rhs))));
-                                        lhs = Box::new(ParseTerm::BinOp(Box::new(__lhs), ParseBinOp::Addition, Box::new(__rhs)));
+                                        let __rhs = ParseTerm::Factor(Box::new(ParseFactor::Exp(Box::new(ParseExp::Term(Box::new(rhs))))));
+                                        let add = Box::new(ParseExp::BinOp(lhs, ParseBinOp::Addition, Box::new(__rhs)));
+                                        lhs = Box::new(ParseTerm::Factor(Box::new(ParseFactor::Exp(add))));
                                         copy_remaining_tokens = __remaining_tokens;
                                     },
                                     Err(e) => {
@@ -327,9 +363,9 @@ fn _parse_exp(tokens: Vec<LexToken>) -> Result<(ParseExp, Vec<LexToken>), &'stat
                                 let _ = copy_remaining_tokens.remove(0); // minus
                                 match _parse_term(copy_remaining_tokens) {
                                     Ok((rhs, mut __remaining_tokens)) => {
-                                        let __lhs = ParseFactor::Exp(Box::new(ParseExp::Term(lhs)));
-                                        let __rhs = ParseFactor::Exp(Box::new(ParseExp::Term(Box::new(rhs))));
-                                        lhs = Box::new(ParseTerm::BinOp(Box::new(__lhs), ParseBinOp::Subtraction, Box::new(__rhs)));
+                                        let __rhs = ParseTerm::Factor(Box::new(ParseFactor::Exp(Box::new(ParseExp::Term(Box::new(rhs))))));
+                                        let add = Box::new(ParseExp::BinOp(lhs, ParseBinOp::Subtraction, Box::new(__rhs)));
+                                        lhs = Box::new(ParseTerm::Factor(Box::new(ParseFactor::Exp(add))));
                                         copy_remaining_tokens = __remaining_tokens;
                                     },
                                     Err(e) => {

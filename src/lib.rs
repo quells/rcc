@@ -1,6 +1,5 @@
 use std::clone::Clone;
 use std::collections::HashMap;
-use std::collections::LinkedList;
 use std::env;
 use std::error::Error;
 use std::fmt;
@@ -30,14 +29,11 @@ pub fn run(config: Config) -> Result<(), Box<Error>> {
 
     println!("Lexing {} characters", characters.len());
     let tokens = lex(characters);
-    for t in tokens {
-        println!("{}", t)
-    }
 
-    // println!("Parsing {} tokens", tokens.len());
-    // let ast = parse(tokens)?;
-    //
-    // println!("Generating code for:\n{}", ast);
+    println!("Parsing {} tokens", tokens.len());
+    let ast = parse(tokens)?;
+
+    println!("Generating code for:\n{}", ast);
     // let asm = generate(ast);
     // println!("{}", asm);
     //
@@ -58,14 +54,15 @@ fn _generate_unop(op: ParseUnOp) -> String {
 
 fn _generate_expression(expression: ParseExp) -> String {
     match expression {
-        ParseExp::Int(i) => {
-            format!("  movl    ${}, %eax\n", i)
-        },
-        ParseExp::UnOp(op, operand) => {
-            let operand_asm = _generate_expression(*operand);
-            let op_asm = _generate_unop(op);
-            format!("{}{}", operand_asm, op_asm)
-        }
+        _ => panic!("not implemented")
+        // ParseExp::Int(i) => {
+        //     format!("  movl    ${}, %eax\n", i)
+        // },
+        // ParseExp::UnOp(op, operand) => {
+        //     let operand_asm = _generate_expression(*operand);
+        //     let op_asm = _generate_unop(op);
+        //     format!("{}{}", operand_asm, op_asm)
+        // }
     }
 }
 
@@ -132,14 +129,42 @@ impl fmt::Display for ParseStatement {
 }
 
 enum ParseExp {
-    Int(i32),
-    UnOp(ParseUnOp, Box<ParseExp>),
+    Term(Box<ParseTerm>),
+    BinOp(Box<ParseTerm>, ParseBinOp, Box<ParseTerm>),
 }
 impl fmt::Display for ParseExp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &ParseExp::Int(ref i) => write!(f, "{}", i),
-            &ParseExp::UnOp(ref op, ref exp) => write!(f, "{}{}", op, exp),
+            &ParseExp::Term(ref t) => write!(f, "{}", t),
+            &ParseExp::BinOp(ref a, ref op, ref b) => write!(f, "({}{}{})", a, op, b),
+        }
+    }
+}
+
+enum ParseTerm {
+    Factor(Box<ParseFactor>),
+    BinOp(Box<ParseFactor>, ParseBinOp, Box<ParseFactor>),
+}
+impl fmt::Display for ParseTerm {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &ParseTerm::Factor(ref x) => write!(f, "{}", x),
+            &ParseTerm::BinOp(ref a, ref op, ref b) => write!(f, "({}{}{})", a, op, b),
+        }
+    }
+}
+
+enum ParseFactor {
+    Exp(Box<ParseExp>),
+    UnOp(ParseUnOp, Box<ParseFactor>),
+    Int(i32),
+}
+impl fmt::Display for ParseFactor {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &ParseFactor::Exp(ref e) => write!(f, "{}", e),
+            &ParseFactor::UnOp(ref op, ref x) => write!(f, "{}{}", op, x),
+            &ParseFactor::Int(ref i) => write!(f, "{}", i),
         }
     }
 }
@@ -159,59 +184,174 @@ impl fmt::Display for ParseUnOp {
     }
 }
 
-fn _eat(mut tokens: LinkedList<LexToken>, _expect: LexToken) -> Result<LinkedList<LexToken>, &'static str> {
-    match tokens.pop_front() {
-        Some(token) => {
-            if matches!(token, _expect) {
-                return Ok(tokens)
-            }
-            // println!("expected {}, found {}", expect, token);
-            return Err("found unexpected token")
-        },
-        None => Err("reached end of tokens")
+enum ParseBinOp {
+    Addition,
+    Subtraction,
+    Multiplication,
+    Division,
+}
+impl fmt::Display for ParseBinOp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &ParseBinOp::Addition => write!(f, "+"),
+            &ParseBinOp::Subtraction => write!(f, "-"),
+            &ParseBinOp::Multiplication => write!(f, "*"),
+            &ParseBinOp::Division => write!(f, "/"),
+        }
     }
 }
 
-fn _parse_exp(mut tokens: LinkedList<LexToken>) -> Result<(ParseExp, LinkedList<LexToken>), &'static str> {
-    match tokens.pop_front() {
-        Some(exp_val) => {
-            match exp_val {
-                LexToken::Integer(val) => Ok((ParseExp::Int(val), tokens)),
-                LexToken::Exclamation => {
-                    match _parse_exp(tokens) {
-                        Ok((_operand, remaining_tokens)) => {
-                            let operand = Box::new(_operand);
-                            Ok((ParseExp::UnOp(ParseUnOp::LogicalNegation, operand), remaining_tokens))
-                        },
-                        Err(e) => Err(e)
-                    }
-                },
-                LexToken::Tilde => {
-                    match _parse_exp(tokens) {
-                        Ok((_operand, remaining_tokens)) => {
-                            let operand = Box::new(_operand);
-                            Ok((ParseExp::UnOp(ParseUnOp::BitwiseComplement, operand), remaining_tokens))
-                        },
-                        Err(e) => Err(e)
-                    }
-                },
-                LexToken::Minus => {
-                    match _parse_exp(tokens) {
-                        Ok((_operand, remaining_tokens)) => {
-                            let operand = Box::new(_operand);
-                            Ok((ParseExp::UnOp(ParseUnOp::Negation, operand), remaining_tokens))
-                        },
-                        Err(e) => Err(e)
-                    }
-                },
-                _ => Err("missing expected integer or unary operation")
-            }
-        },
-        None => Err("missing expected expression value")
+fn _eat(mut tokens: Vec<LexToken>, _expect: LexToken) -> Result<Vec<LexToken>, &'static str> {
+    let next_token = tokens.remove(0);
+    if matches!(next_token, _expect) {
+        return Ok(tokens)
+    } else {
+        return Err("found unexpected token")
     }
 }
 
-fn _parse_statement(tokens: LinkedList<LexToken>) -> Result<(ParseStatement, LinkedList<LexToken>), &'static str> {
+fn _parse_factor(mut tokens: Vec<LexToken>) -> Result<(ParseFactor, Vec<LexToken>), &'static str> {
+    let first_token = tokens.remove(0);
+    match first_token {
+        LexToken::LParen => {
+            match _parse_exp(tokens) {
+                Ok((inner, remaining_tokens)) => {
+                    let mut copy_tokens = remaining_tokens.clone();
+                    let next_token = copy_tokens.remove(0);
+                    match next_token {
+                        LexToken::RParen => Ok((ParseFactor::Exp(Box::new(inner)), copy_tokens)),
+                        _ => Err("could not parse factor"),
+                    }
+                },
+                Err(e) => Err(e),
+            }
+        },
+        LexToken::Exclamation => {
+            match _parse_factor(tokens) {
+                Ok((operand, remaining_tokens)) => Ok((ParseFactor::UnOp(ParseUnOp::LogicalNegation, Box::new(operand)), remaining_tokens)),
+                Err(e) => Err(e),
+            }
+        },
+        LexToken::Tilde => {
+            match _parse_factor(tokens) {
+                Ok((operand, remaining_tokens)) => Ok((ParseFactor::UnOp(ParseUnOp::BitwiseComplement, Box::new(operand)), remaining_tokens)),
+                Err(e) => Err(e),
+            }
+        },
+        LexToken::Minus => {
+            match _parse_factor(tokens) {
+                Ok((operand, remaining_tokens)) => Ok((ParseFactor::UnOp(ParseUnOp::Negation, Box::new(operand)), remaining_tokens)),
+                Err(e) => Err(e),
+            }
+        },
+        LexToken::Integer(i) => Ok((ParseFactor::Int(i), tokens)),
+        _ => Err("could not parse factor"),
+    }
+}
+
+fn _parse_term(tokens: Vec<LexToken>) -> Result<(ParseTerm, Vec<LexToken>), &'static str> {
+    match _parse_factor(tokens) {
+        Ok((_lhs, mut remaining_tokens)) => {
+            let mut lhs = Box::new(_lhs);
+            loop {
+                let mut copy_remaining_tokens = remaining_tokens.clone();
+                match remaining_tokens.get(0) {
+                    Some(next_token) => {
+                        match *next_token {
+                            LexToken::Star => {
+                                let _ = copy_remaining_tokens.remove(0); // star
+                                match _parse_factor(copy_remaining_tokens) {
+                                    Ok((rhs, mut __remaining_tokens)) => {
+                                        let mult = Box::new(ParseTerm::BinOp(lhs, ParseBinOp::Multiplication, Box::new(rhs)));
+                                        lhs = Box::new(ParseFactor::Exp(Box::new(ParseExp::Term(mult))));
+                                        copy_remaining_tokens = __remaining_tokens;
+                                    },
+                                    Err(e) => {
+                                        println!("{}", e);
+                                        break
+                                    }
+                                }
+                            },
+                            LexToken::Slash => {
+                                let _ = copy_remaining_tokens.remove(0); // slash
+                                match _parse_factor(copy_remaining_tokens) {
+                                    Ok((rhs, mut __remaining_tokens)) => {
+                                        let div = Box::new(ParseTerm::BinOp(lhs, ParseBinOp::Division, Box::new(rhs)));
+                                        lhs = Box::new(ParseFactor::Exp(Box::new(ParseExp::Term(div))));
+                                        copy_remaining_tokens = __remaining_tokens;
+                                    },
+                                    Err(e) => {
+                                        println!("{}", e);
+                                        break
+                                    }
+                                }
+                            },
+                            _ => break,
+                        }
+                    },
+                    None => break,
+                };
+                remaining_tokens = copy_remaining_tokens
+            };
+            Ok((ParseTerm::Factor(lhs), remaining_tokens))
+        },
+        Err(e) => Err(e)
+    }
+}
+
+fn _parse_exp(tokens: Vec<LexToken>) -> Result<(ParseExp, Vec<LexToken>), &'static str> {
+    match _parse_term(tokens) {
+        Ok((_lhs, mut remaining_tokens)) => {
+            let mut lhs = Box::new(_lhs);
+            loop {
+                let mut copy_remaining_tokens = remaining_tokens.clone();
+                match remaining_tokens.get(0) {
+                    Some(next_token) => {
+                        match *next_token {
+                            LexToken::Plus => {
+                                let _ = copy_remaining_tokens.remove(0); // plus
+                                match _parse_term(copy_remaining_tokens) {
+                                    Ok((rhs, mut __remaining_tokens)) => {
+                                        let __lhs = ParseFactor::Exp(Box::new(ParseExp::Term(lhs)));
+                                        let __rhs = ParseFactor::Exp(Box::new(ParseExp::Term(Box::new(rhs))));
+                                        lhs = Box::new(ParseTerm::BinOp(Box::new(__lhs), ParseBinOp::Addition, Box::new(__rhs)));
+                                        copy_remaining_tokens = __remaining_tokens;
+                                    },
+                                    Err(e) => {
+                                        println!("{}", e);
+                                        break
+                                    }
+                                }
+                            },
+                            LexToken::Minus => {
+                                let _ = copy_remaining_tokens.remove(0); // minus
+                                match _parse_term(copy_remaining_tokens) {
+                                    Ok((rhs, mut __remaining_tokens)) => {
+                                        let __lhs = ParseFactor::Exp(Box::new(ParseExp::Term(lhs)));
+                                        let __rhs = ParseFactor::Exp(Box::new(ParseExp::Term(Box::new(rhs))));
+                                        lhs = Box::new(ParseTerm::BinOp(Box::new(__lhs), ParseBinOp::Subtraction, Box::new(__rhs)));
+                                        copy_remaining_tokens = __remaining_tokens;
+                                    },
+                                    Err(e) => {
+                                        println!("{}", e);
+                                        break
+                                    }
+                                }
+                            },
+                            _ => break,
+                        }
+                    },
+                    None => break,
+                };
+                remaining_tokens = copy_remaining_tokens;
+            };
+            Ok((ParseExp::Term(lhs), remaining_tokens))
+        },
+        Err(e) => Err(e)
+    }
+}
+
+fn _parse_statement(tokens: Vec<LexToken>) -> Result<(ParseStatement, Vec<LexToken>), &'static str> {
     // eventually: parse assignment
     match _eat(tokens, LexToken::Keyword(LexTokenKeyword::Return)) {
         Ok(remaining_tokens) => {
@@ -229,28 +369,24 @@ fn _parse_statement(tokens: LinkedList<LexToken>) -> Result<(ParseStatement, Lin
     }
 }
 
-fn _parse_function(tokens: LinkedList<LexToken>) -> Result<(ParseFunction, LinkedList<LexToken>), &'static str> {
+fn _parse_function(tokens: Vec<LexToken>) -> Result<(ParseFunction, Vec<LexToken>), &'static str> {
     match _eat(tokens, LexToken::Keyword(LexTokenKeyword::Int)) {
         Ok(mut remaining_tokens) => {
-            match remaining_tokens.pop_front() {
-                Some(fn_id) => {
-                    match fn_id {
-                        LexToken::Identifier(id) => {
-                            match _eat(remaining_tokens, LexToken::LParen) {
+            let fn_id = remaining_tokens.remove(0);
+            match fn_id {
+                LexToken::Identifier(id) => {
+                    match _eat(remaining_tokens, LexToken::LParen) {
+                        Ok(remaining_tokens) => {
+                            // eventually: parse function paramenters
+                            match _eat(remaining_tokens, LexToken::RParen) {
                                 Ok(remaining_tokens) => {
-                                    // eventually: parse function paramenters
-                                    match _eat(remaining_tokens, LexToken::RParen) {
+                                    match _eat(remaining_tokens, LexToken::LBracket) {
                                         Ok(remaining_tokens) => {
-                                            match _eat(remaining_tokens, LexToken::LBracket) {
-                                                Ok(remaining_tokens) => {
-                                                    // eventually: parse list of statements
-                                                    match _parse_statement(remaining_tokens) {
-                                                        Ok((parsed_statement, remaining_tokens)) => {
-                                                            match _eat(remaining_tokens, LexToken::RBracket) {
-                                                                Ok(remaining_tokens) => Ok((ParseFunction::IntVoid(id, parsed_statement), remaining_tokens)),
-                                                                Err(e) => Err(e)
-                                                            }
-                                                        },
+                                            // eventually: parse list of statements
+                                            match _parse_statement(remaining_tokens) {
+                                                Ok((parsed_statement, remaining_tokens)) => {
+                                                    match _eat(remaining_tokens, LexToken::RBracket) {
+                                                        Ok(remaining_tokens) => Ok((ParseFunction::IntVoid(id, parsed_statement), remaining_tokens)),
                                                         Err(e) => Err(e)
                                                     }
                                                 },
@@ -263,41 +399,45 @@ fn _parse_function(tokens: LinkedList<LexToken>) -> Result<(ParseFunction, Linke
                                 Err(e) => Err(e)
                             }
                         },
-                        _ => Err("missing expected identifier token")
+                        Err(e) => Err(e)
                     }
                 },
-                None => Err("missing expected function identifier")
+                _ => Err("missing expected identifier token")
             }
         },
         Err(e) => Err(e)
     }
 }
 
-fn _parse_program(tokens: LinkedList<LexToken>) -> Result<(ParseProgram, LinkedList<LexToken>), &'static str> {
+fn _parse_program(tokens: Vec<LexToken>) -> Result<(ParseProgram, Vec<LexToken>), &'static str> {
     match _parse_function(tokens) {
         Ok((function, remaining)) => Ok((ParseProgram::Function(function), remaining)),
         Err(err) => Err(err),
     }
 }
 
-fn parse(tokens: LinkedList<LexToken>) -> Result<ParseProgram, &'static str> {
+fn parse(tokens: Vec<LexToken>) -> Result<ParseProgram, &'static str> {
     match _parse_program(tokens) {
         Ok((program, remaining)) => {
             match remaining.len() {
                 0 => Ok(program),
-                _ => Err("unexpected tokens found after parsing program"),
+                _ => {
+                    for t in remaining {
+                        println!("{}", t)
+                    }
+                    Err("unexpected tokens found after parsing program")
+                },
             }
         },
         Err(err) => Err(err),
     }
 }
 
-#[derive(PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 enum LexTokenKeyword {
     Int,
     Return,
 }
-
 impl fmt::Display for LexTokenKeyword {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -307,7 +447,7 @@ impl fmt::Display for LexTokenKeyword {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 enum LexToken {
     Unknown(u8),
     Keyword(LexTokenKeyword),
@@ -326,7 +466,6 @@ enum LexToken {
     RBracket,
     Whitespace,
 }
-
 impl fmt::Display for LexToken {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -350,8 +489,8 @@ impl fmt::Display for LexToken {
     }
 }
 
-fn lex(src: &[u8]) -> LinkedList<LexToken> {
-    let mut tokens: LinkedList<LexToken> = LinkedList::new();
+fn lex(src: &[u8]) -> Vec<LexToken> {
+    let mut tokens: Vec<LexToken> = Vec::new();
     let mut buffer: Vec<u8> = Vec::new();
     let mut first_char_letter = false;
 
@@ -380,13 +519,13 @@ fn lex(src: &[u8]) -> LinkedList<LexToken> {
                     let s = {std::str::from_utf8(&buf_copy).unwrap()};
                     if first_char_letter {
                         match s {
-                            "int" => tokens.push_back(LexToken::Keyword(LexTokenKeyword::Int)),
-                            "return" => tokens.push_back(LexToken::Keyword(LexTokenKeyword::Return)),
-                            _ => tokens.push_back(LexToken::Identifier(String::from(s))),
+                            "int" => tokens.push(LexToken::Keyword(LexTokenKeyword::Int)),
+                            "return" => tokens.push(LexToken::Keyword(LexTokenKeyword::Return)),
+                            _ => tokens.push(LexToken::Identifier(String::from(s))),
                         }
                     } else {
                         if let Ok(n) = i32::from_str(s) {
-                            tokens.push_back(LexToken::Integer(n));
+                            tokens.push(LexToken::Integer(n));
                         } else {
                             panic!("could not tokenize integer: {}", s)
                         }
@@ -396,18 +535,7 @@ fn lex(src: &[u8]) -> LinkedList<LexToken> {
                 }
                 match single_char_token {
                     &LexToken::Whitespace => (),
-                    &LexToken::LParen => tokens.push_back(LexToken::LParen),
-                    &LexToken::RParen => tokens.push_back(LexToken::RParen),
-                    &LexToken::Semicolon => tokens.push_back(LexToken::Semicolon),
-                    &LexToken::LBracket => tokens.push_back(LexToken::LBracket),
-                    &LexToken::RBracket => tokens.push_back(LexToken::RBracket),
-                    &LexToken::Exclamation => tokens.push_back(LexToken::Exclamation),
-                    &LexToken::Plus => tokens.push_back(LexToken::Plus),
-                    &LexToken::Minus => tokens.push_back(LexToken::Minus),
-                    &LexToken::Star => tokens.push_back(LexToken::Star),
-                    &LexToken::Slash => tokens.push_back(LexToken::Slash),
-                    &LexToken::Tilde => tokens.push_back(LexToken::Tilde),
-                    _ => panic!("single char token not implemented for {}", single_char_token),
+                    _ => tokens.push((*single_char_token).clone()),
                 }
             },
             None => {
@@ -419,7 +547,7 @@ fn lex(src: &[u8]) -> LinkedList<LexToken> {
                 } else if 0x30 <= *c && *c <= 0x39 {
                     buffer.push(*c);
                 } else {
-                    tokens.push_back(LexToken::Unknown(*c));
+                    tokens.push(LexToken::Unknown(*c));
                 }
             },
         }

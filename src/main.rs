@@ -1,7 +1,7 @@
 use std::process::exit;
 
 extern crate rcc;
-use rcc::Config;
+use rcc::config::Config;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();

@@ -32,8 +32,8 @@ pub enum LexToken {
     Exclamation,
     LParen,
     RParen,
-    LBracket,
-    RBracket,
+    LBrace,
+    RBrace,
     Whitespace,
 }
 
@@ -53,8 +53,8 @@ impl fmt::Display for LexToken {
             &LexToken::Exclamation => write!(f, "<EXCLAMATION>"),
             &LexToken::LParen => write!(f, "<LPAREN>"),
             &LexToken::RParen => write!(f, "<RPAREN>"),
-            &LexToken::LBracket => write!(f, "<LBRACKET>"),
-            &LexToken::RBracket => write!(f, "<RBRACKET>"),
+            &LexToken::LBrace => write!(f, "<LBrace>"),
+            &LexToken::RBrace => write!(f, "<RBrace>"),
             &LexToken::Whitespace => write!(f, "<WHITESPACE>"),
         }
     }
@@ -78,8 +78,8 @@ pub fn lex(src: &[u8]) -> Vec<LexToken> {
     single_chars.insert(b'-', LexToken::Minus);
     single_chars.insert(b'/', LexToken::Slash);
     single_chars.insert(b';', LexToken::Semicolon);
-    single_chars.insert(b'[', LexToken::LBracket);
-    single_chars.insert(b']', LexToken::RBracket);
+    single_chars.insert(b'{', LexToken::LBrace);
+    single_chars.insert(b'}', LexToken::RBrace);
     single_chars.insert(b'~', LexToken::Tilde);
 
     for c in src.iter() {

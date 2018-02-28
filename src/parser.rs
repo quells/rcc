@@ -296,12 +296,12 @@ fn _parse_function(tokens: Vec<LexToken>) -> Result<(ParseFunction, Vec<LexToken
                             // eventually: parse function paramenters
                             match _eat(remaining_tokens, LexToken::RParen) {
                                 Ok(remaining_tokens) => {
-                                    match _eat(remaining_tokens, LexToken::LBracket) {
+                                    match _eat(remaining_tokens, LexToken::LBrace) {
                                         Ok(remaining_tokens) => {
                                             // eventually: parse list of statements
                                             match _parse_statement(remaining_tokens) {
                                                 Ok((parsed_statement, remaining_tokens)) => {
-                                                    match _eat(remaining_tokens, LexToken::RBracket) {
+                                                    match _eat(remaining_tokens, LexToken::RBrace) {
                                                         Ok(remaining_tokens) => Ok((ParseFunction::IntVoid(id, parsed_statement), remaining_tokens)),
                                                         Err(e) => Err(e)
                                                     }

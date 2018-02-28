@@ -1,35 +1,35 @@
-use parser;
+use parser::*;
 
-fn _generate_unop(op: parser::ParseUnOp) -> String {
+fn _generate_unop(op: UnaryOp) -> String {
     match op {
-        parser::ParseUnOp::Negation => format!("  neg     %eax        /* Negate EAX */"),
-        parser::ParseUnOp::BitwiseComplement => format!("  not     %eax        /* Bitwise Complement EAX */"),
-        parser::ParseUnOp::LogicalNegation => format!(r"  cmpl    $0, %eax    /* ZF to (exp == 0) */
+        UnaryOp::Negation => format!("  neg     %eax        /* Negate EAX */"),
+        UnaryOp::BitwiseComplement => format!("  not     %eax        /* Bitwise Complement EAX */"),
+        UnaryOp::LogicalNegation => format!(r"  cmpl    $0, %eax    /* ZF to (exp == 0) */
   movl    $0, %eax    /* zero out EAX without changing FLAGS */
   sete    %al         /* set AL register (low byte of EAX) to (ZF == true) */
                       /* EAX is logically negated */"),
     }
 }
 
-fn _generate_factor(factor: parser::ParseFactor) -> String {
+fn _generate_factor(factor: Factor) -> String {
     match factor {
-        parser::ParseFactor::Exp(e) => _generate_expression(*e),
-        parser::ParseFactor::UnOp(op, x) => {
+        Factor::Expr(e) => _generate_expression(*e),
+        Factor::UnOp(op, x) => {
             let x_asm = _generate_factor(*x);
             let op_asm = _generate_unop(op);
             format!(r"{}
 {}", x_asm, op_asm)
         },
-        parser::ParseFactor::Int(i) => format!("  movl    ${}, %eax    /* Set EAX to immediate value {} */", i, i),
+        Factor::Int(i) => format!("  movl    ${}, %eax    /* Set EAX to immediate value {} */", i, i),
     }
 }
 
-fn _generate_term(term: parser::ParseTerm) -> String {
+fn _generate_term(term: Term) -> String {
     match term {
-        parser::ParseTerm::Factor(f) => _generate_factor(*f),
-        parser::ParseTerm::BinOp(lhs, op, rhs) => {
+        Term::Factor(f) => _generate_factor(*f),
+        Term::BinOp(lhs, op, rhs) => {
             match op {
-                parser::ParseBinOp::Multiplication => {
+                BinaryOp::Multiplication => {
                     let lhs_str = _generate_factor(*lhs);
                     let rhs_str = _generate_factor(*rhs);
                     format!(r"                      /* Set EAX to LHS of Multiplication */
@@ -40,7 +40,7 @@ fn _generate_term(term: parser::ParseTerm) -> String {
   popl    %ecx        /* Pop ECX from the stack */
   imul    %ecx, %eax  /* Multiply EAX and ECX, storing the result in EAX */", lhs_str, rhs_str)
                 },
-                parser::ParseBinOp::Division => {
+                BinaryOp::Division => {
                     let lhs_str = _generate_factor(*lhs);
                     let rhs_str = _generate_factor(*rhs);
                     format!(r"                      /* Set EAX to divisor */
@@ -60,12 +60,12 @@ fn _generate_term(term: parser::ParseTerm) -> String {
     }
 }
 
-fn _generate_expression(expression: parser::ParseExp) -> String {
+fn _generate_expression(expression: Expr) -> String {
     match expression {
-        parser::ParseExp::Term(t) => _generate_term(*t),
-        parser::ParseExp::BinOp(lhs, op, rhs) => {
+        Expr::Term(t) => _generate_term(*t),
+        Expr::BinOp(lhs, op, rhs) => {
             match op {
-                parser::ParseBinOp::Addition => {
+                BinaryOp::Addition => {
                     let lhs_str = _generate_term(*lhs);
                     let rhs_str = _generate_term(*rhs);
                     format!(r"                      /* Set EAX to LHS of Addition */
@@ -76,7 +76,7 @@ fn _generate_expression(expression: parser::ParseExp) -> String {
   popl    %ecx        /* Pop ECX from the stack */
   addl    %ecx, %eax  /* Add EAX and ECX, storing the result in EAX */", lhs_str, rhs_str)
                 },
-                parser::ParseBinOp::Subtraction => {
+                BinaryOp::Subtraction => {
                     let lhs_str = _generate_term(*lhs);
                     let rhs_str = _generate_term(*rhs);
                     format!(r"                      /* Set EAX to RHS of Subtraction */
@@ -93,9 +93,9 @@ fn _generate_expression(expression: parser::ParseExp) -> String {
     }
 }
 
-fn _generate_statement(statement: parser::ParseStatement) -> String {
+fn _generate_statement(statement: Statement) -> String {
     match statement {
-        parser::ParseStatement::Return(exp) => {
+        Statement::Return(exp) => {
             let exp_asm = _generate_expression(exp);
             format!(r"{}
   ret                 /* Return value of EAX */", exp_asm)
@@ -103,9 +103,9 @@ fn _generate_statement(statement: parser::ParseStatement) -> String {
     }
 }
 
-fn _generate_function(function: parser::ParseFunction) -> String {
+fn _generate_function(function: Function) -> String {
     match function {
-        parser::ParseFunction::IntVoid(id, stmt) => {
+        Function::IntVoid(id, stmt) => {
             let stmt_asm = _generate_statement(stmt);
             format!(r"_{}
 _{}:
@@ -114,14 +114,14 @@ _{}:
     }
 }
 
-fn _generate_program(program: parser::ParseProgram) -> String {
+fn _generate_program(program: Program) -> String {
     let f_asm = match program {
-        parser::ParseProgram::Function(f) => _generate_function(f),
+        Program::Function(f) => _generate_function(f),
     };
     format!(r"  .align 4
   .global {}", f_asm)
 }
 
-pub fn generate(program: parser::ParseProgram) -> String {
+pub fn generate(program: Program) -> String {
     _generate_program(program)
 }

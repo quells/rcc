@@ -66,21 +66,21 @@ pub fn lex(src: &[u8]) -> Vec<LexToken> {
     let mut first_char_letter = false;
 
     let mut single_chars: HashMap<u8, LexToken> = HashMap::new();
-    single_chars.insert(0x09, LexToken::Whitespace);
-    single_chars.insert(0x0A, LexToken::Whitespace);
-    single_chars.insert(0x0D, LexToken::Whitespace);
-    single_chars.insert(0x20, LexToken::Whitespace);
-    single_chars.insert(0x21, LexToken::Exclamation);
-    single_chars.insert(0x28, LexToken::LParen);
-    single_chars.insert(0x29, LexToken::RParen);
-    single_chars.insert(0x2A, LexToken::Star);
-    single_chars.insert(0x2B, LexToken::Plus);
-    single_chars.insert(0x2D, LexToken::Minus);
-    single_chars.insert(0x2F, LexToken::Slash);
-    single_chars.insert(0x3B, LexToken::Semicolon);
-    single_chars.insert(0x7B, LexToken::LBracket);
-    single_chars.insert(0x7D, LexToken::RBracket);
-    single_chars.insert(0x7E, LexToken::Tilde);
+    single_chars.insert(0x09, LexToken::Whitespace); // horizontal tab
+    single_chars.insert(0x0A, LexToken::Whitespace); // new line
+    single_chars.insert(0x0D, LexToken::Whitespace); // carriage return
+    single_chars.insert(0x20, LexToken::Whitespace); // space
+    single_chars.insert(b'!', LexToken::Exclamation);
+    single_chars.insert(b'(', LexToken::LParen);
+    single_chars.insert(b')', LexToken::RParen);
+    single_chars.insert(b'*', LexToken::Star);
+    single_chars.insert(b'+', LexToken::Plus);
+    single_chars.insert(b'-', LexToken::Minus);
+    single_chars.insert(b'/', LexToken::Slash);
+    single_chars.insert(b';', LexToken::Semicolon);
+    single_chars.insert(b'[', LexToken::LBracket);
+    single_chars.insert(b']', LexToken::RBracket);
+    single_chars.insert(b'~', LexToken::Tilde);
 
     for c in src.iter() {
         match single_chars.get(c) {
@@ -110,12 +110,12 @@ pub fn lex(src: &[u8]) -> Vec<LexToken> {
                 }
             },
             None => {
-                if (0x41 <= *c && *c <= 0x5A) || (0x61 <= *c && *c <= 0x7A) {
+                if (b'A' <= *c && *c <= b'Z') || (b'a' <= *c && *c <= b'z') {
                     if buffer.len() == 0 {
                         first_char_letter = true;
                     }
                     buffer.push(*c);
-                } else if 0x30 <= *c && *c <= 0x39 {
+                } else if b'0' <= *c && *c <= b'9' {
                     buffer.push(*c);
                 } else {
                     tokens.push(LexToken::Unknown(*c));

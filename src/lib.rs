@@ -21,7 +21,7 @@ pub fn run(config: config::Config) -> Result<(), Box<Error>> {
     println!("Parsing {} tokens", tokens.len());
     let ast = parser::parse(tokens)?;
 
-    println!("Generating code for: {}", ast);
+    println!("Generating code for: {:?}", ast);
     let asm = generator_gas::generate(ast);
     println!("{}", asm);
 

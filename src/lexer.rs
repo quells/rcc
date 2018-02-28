@@ -8,7 +8,7 @@ pub enum LexTokenKeyword {
     Int,
     Return,
 }
-impl fmt::Display for LexTokenKeyword {
+impl fmt::Debug for LexTokenKeyword {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &LexTokenKeyword::Int => write!(f, "<INT>"),
@@ -37,11 +37,11 @@ pub enum LexToken {
     Whitespace,
 }
 
-impl fmt::Display for LexToken {
+impl fmt::Debug for LexToken {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &LexToken::Unknown(ref c) => write!(f, "<UNKNOWN: {}>", c),
-            &LexToken::Keyword(ref keyword) => write!(f, "<KEYWORD: {}>", keyword),
+            &LexToken::Keyword(ref keyword) => write!(f, "<KEYWORD: {:?}>", keyword),
             &LexToken::Identifier(ref id) => write!(f, "<ID: {}>", id),
             &LexToken::Integer(ref i) => write!(f, "<INT: {}>", i),
             &LexToken::Semicolon => write!(f, "<SEMICOLON>"),

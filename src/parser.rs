@@ -14,10 +14,10 @@ macro_rules! matches(
 pub enum ParseProgram {
     Function(ParseFunction),
 }
-impl fmt::Display for ParseProgram {
+impl fmt::Debug for ParseProgram {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &ParseProgram::Function(ref func) => write!(f, "{}", func),
+            &ParseProgram::Function(ref func) => write!(f, "{:?}", func),
         }
     }
 }
@@ -25,10 +25,10 @@ impl fmt::Display for ParseProgram {
 pub enum ParseFunction {
     IntVoid(String, ParseStatement), // identifier, statement
 }
-impl fmt::Display for ParseFunction {
+impl fmt::Debug for ParseFunction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &ParseFunction::IntVoid(ref id, ref s) => write!(f, "int {}:<{}>", id, s),
+            &ParseFunction::IntVoid(ref id, ref s) => write!(f, "int {}:<{:?}>", id, s),
         }
     }
 }
@@ -36,10 +36,10 @@ impl fmt::Display for ParseFunction {
 pub enum ParseStatement {
     Return(ParseExp),
 }
-impl fmt::Display for ParseStatement {
+impl fmt::Debug for ParseStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &ParseStatement::Return(ref e) => write!(f, "return {}", e),
+            &ParseStatement::Return(ref e) => write!(f, "return {:?}", e),
         }
     }
 }
@@ -48,11 +48,11 @@ pub enum ParseExp {
     Term(Box<ParseTerm>),
     BinOp(Box<ParseTerm>, ParseBinOp, Box<ParseTerm>),
 }
-impl fmt::Display for ParseExp {
+impl fmt::Debug for ParseExp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &ParseExp::Term(ref t) => write!(f, "{}", t),
-            &ParseExp::BinOp(ref a, ref op, ref b) => write!(f, "exp({}{}{})", a, op, b),
+            &ParseExp::Term(ref t) => write!(f, "{:?}", t),
+            &ParseExp::BinOp(ref a, ref op, ref b) => write!(f, "exp({:?}{:?}{:?})", a, op, b),
         }
     }
 }
@@ -61,11 +61,11 @@ pub enum ParseTerm {
     Factor(Box<ParseFactor>),
     BinOp(Box<ParseFactor>, ParseBinOp, Box<ParseFactor>),
 }
-impl fmt::Display for ParseTerm {
+impl fmt::Debug for ParseTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &ParseTerm::Factor(ref x) => write!(f, "{}", x),
-            &ParseTerm::BinOp(ref a, ref op, ref b) => write!(f, "term({}{}{})", a, op, b),
+            &ParseTerm::Factor(ref x) => write!(f, "{:?}", x),
+            &ParseTerm::BinOp(ref a, ref op, ref b) => write!(f, "term({:?}{:?}{:?})", a, op, b),
         }
     }
 }
@@ -75,11 +75,11 @@ pub enum ParseFactor {
     UnOp(ParseUnOp, Box<ParseFactor>),
     Int(i32),
 }
-impl fmt::Display for ParseFactor {
+impl fmt::Debug for ParseFactor {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &ParseFactor::Exp(ref e) => write!(f, "{}", e),
-            &ParseFactor::UnOp(ref op, ref x) => write!(f, "{}{}", op, x),
+            &ParseFactor::Exp(ref e) => write!(f, "{:?}", e),
+            &ParseFactor::UnOp(ref op, ref x) => write!(f, "{:?}{:?}", op, x),
             &ParseFactor::Int(ref i) => write!(f, "{}", i),
         }
     }
@@ -90,7 +90,7 @@ pub enum ParseUnOp {
     BitwiseComplement,
     LogicalNegation,
 }
-impl fmt::Display for ParseUnOp {
+impl fmt::Debug for ParseUnOp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &ParseUnOp::Negation => write!(f, "-"),
@@ -106,7 +106,7 @@ pub enum ParseBinOp {
     Multiplication,
     Division,
 }
-impl fmt::Display for ParseBinOp {
+impl fmt::Debug for ParseBinOp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &ParseBinOp::Addition => write!(f, "+"),
@@ -117,16 +117,17 @@ impl fmt::Display for ParseBinOp {
     }
 }
 
-fn _eat(mut tokens: Vec<LexToken>, _expect: LexToken) -> Result<Vec<LexToken>, &'static str> {
+fn _eat(mut tokens: Vec<LexToken>, _expect: LexToken) -> Result<Vec<LexToken>, String> {
     let next_token = tokens.remove(0);
+    let debug_token = next_token.clone();
     if matches!(next_token, _expect) {
         return Ok(tokens)
     } else {
-        return Err("found unexpected token")
+        return Err(format!("found unexpected token: {:?}", debug_token))
     }
 }
 
-fn _parse_factor(mut tokens: Vec<LexToken>) -> Result<(ParseFactor, Vec<LexToken>), &'static str> {
+fn _parse_factor(mut tokens: Vec<LexToken>) -> Result<(ParseFactor, Vec<LexToken>), String> {
     let first_token = tokens.remove(0);
     match first_token {
         LexToken::LParen => {
@@ -136,7 +137,7 @@ fn _parse_factor(mut tokens: Vec<LexToken>) -> Result<(ParseFactor, Vec<LexToken
                     let next_token = copy_tokens.remove(0);
                     match next_token {
                         LexToken::RParen => Ok((ParseFactor::Exp(Box::new(inner)), copy_tokens)),
-                        _ => Err("could not parse factor"),
+                        _ => Err(format!("could not parse factor. expected <RParen>, found {:?}", next_token)),
                     }
                 },
                 Err(e) => Err(e),
@@ -161,11 +162,11 @@ fn _parse_factor(mut tokens: Vec<LexToken>) -> Result<(ParseFactor, Vec<LexToken
             }
         },
         LexToken::Integer(i) => Ok((ParseFactor::Int(i), tokens)),
-        _ => Err("could not parse factor"),
+        _ => Err(format!("could not parse factor. expected one of `(!~-`, found {:?}", first_token)),
     }
 }
 
-fn _parse_term(tokens: Vec<LexToken>) -> Result<(ParseTerm, Vec<LexToken>), &'static str> {
+fn _parse_term(tokens: Vec<LexToken>) -> Result<(ParseTerm, Vec<LexToken>), String> {
     match _parse_factor(tokens) {
         Ok((_lhs, mut remaining_tokens)) => {
             let mut lhs = Box::new(_lhs);
@@ -183,7 +184,7 @@ fn _parse_term(tokens: Vec<LexToken>) -> Result<(ParseTerm, Vec<LexToken>), &'st
                                         copy_remaining_tokens = __remaining_tokens;
                                     },
                                     Err(e) => {
-                                        println!("{}", e);
+                                        println!("Error matching *: {}", e);
                                         break
                                     }
                                 }
@@ -197,7 +198,7 @@ fn _parse_term(tokens: Vec<LexToken>) -> Result<(ParseTerm, Vec<LexToken>), &'st
                                         copy_remaining_tokens = __remaining_tokens;
                                     },
                                     Err(e) => {
-                                        println!("{}", e);
+                                        println!("Error matching /: {}", e);
                                         break
                                     }
                                 }
@@ -215,7 +216,7 @@ fn _parse_term(tokens: Vec<LexToken>) -> Result<(ParseTerm, Vec<LexToken>), &'st
     }
 }
 
-fn _parse_exp(tokens: Vec<LexToken>) -> Result<(ParseExp, Vec<LexToken>), &'static str> {
+fn _parse_exp(tokens: Vec<LexToken>) -> Result<(ParseExp, Vec<LexToken>), String> {
     match _parse_term(tokens) {
         Ok((_lhs, mut remaining_tokens)) => {
             let mut lhs = Box::new(_lhs);
@@ -234,7 +235,7 @@ fn _parse_exp(tokens: Vec<LexToken>) -> Result<(ParseExp, Vec<LexToken>), &'stat
                                         copy_remaining_tokens = __remaining_tokens;
                                     },
                                     Err(e) => {
-                                        println!("{}", e);
+                                        println!("Error matching +: {}", e);
                                         break
                                     }
                                 }
@@ -249,7 +250,7 @@ fn _parse_exp(tokens: Vec<LexToken>) -> Result<(ParseExp, Vec<LexToken>), &'stat
                                         copy_remaining_tokens = __remaining_tokens;
                                     },
                                     Err(e) => {
-                                        println!("{}", e);
+                                        println!("Error matching -: {}", e);
                                         break
                                     }
                                 }
@@ -267,7 +268,7 @@ fn _parse_exp(tokens: Vec<LexToken>) -> Result<(ParseExp, Vec<LexToken>), &'stat
     }
 }
 
-fn _parse_statement(tokens: Vec<LexToken>) -> Result<(ParseStatement, Vec<LexToken>), &'static str> {
+fn _parse_statement(tokens: Vec<LexToken>) -> Result<(ParseStatement, Vec<LexToken>), String> {
     // eventually: parse assignment
     match _eat(tokens, LexToken::Keyword(LexTokenKeyword::Return)) {
         Ok(remaining_tokens) => {
@@ -285,7 +286,7 @@ fn _parse_statement(tokens: Vec<LexToken>) -> Result<(ParseStatement, Vec<LexTok
     }
 }
 
-fn _parse_function(tokens: Vec<LexToken>) -> Result<(ParseFunction, Vec<LexToken>), &'static str> {
+fn _parse_function(tokens: Vec<LexToken>) -> Result<(ParseFunction, Vec<LexToken>), String> {
     match _eat(tokens, LexToken::Keyword(LexTokenKeyword::Int)) {
         Ok(mut remaining_tokens) => {
             let fn_id = remaining_tokens.remove(0);
@@ -318,30 +319,27 @@ fn _parse_function(tokens: Vec<LexToken>) -> Result<(ParseFunction, Vec<LexToken
                         Err(e) => Err(e)
                     }
                 },
-                _ => Err("missing expected identifier token")
+                _ => Err("missing expected identifier token".to_string())
             }
         },
         Err(e) => Err(e)
     }
 }
 
-fn _parse_program(tokens: Vec<LexToken>) -> Result<(ParseProgram, Vec<LexToken>), &'static str> {
+fn _parse_program(tokens: Vec<LexToken>) -> Result<(ParseProgram, Vec<LexToken>), String> {
     match _parse_function(tokens) {
         Ok((function, remaining)) => Ok((ParseProgram::Function(function), remaining)),
         Err(err) => Err(err),
     }
 }
 
-pub fn parse(tokens: Vec<LexToken>) -> Result<ParseProgram, &'static str> {
+pub fn parse(tokens: Vec<LexToken>) -> Result<ParseProgram, String> {
     match _parse_program(tokens) {
         Ok((program, remaining)) => {
             match remaining.len() {
                 0 => Ok(program),
                 _ => {
-                    for t in remaining {
-                        println!("{}", t)
-                    }
-                    Err("unexpected tokens found after parsing program")
+                    Err(format!("unexpected tokens found after parsing program: {:?}", remaining))
                 },
             }
         },

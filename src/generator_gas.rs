@@ -54,7 +54,7 @@ fn _generate_term(term: parser::ParseTerm) -> String {
   idivl   %ecx        /* Divide EDX:EAX by ECX and store the result in EAX */
                       /* The remainder is stored in EDX */", rhs_str, lhs_str)
                 },
-                _ => panic!("expected multiplication or division, found {}", op)
+                _ => panic!("expected multiplication or division, found {:?}", op)
             }
         }
     }
@@ -87,7 +87,7 @@ fn _generate_expression(expression: parser::ParseExp) -> String {
   popl    %ecx        /* Pop ECX from the stack */
   subl    %ecx, %eax  /* Subtract ECX from EAX, storing the result in EAX */", rhs_str, lhs_str)
                 },
-                _ => panic!("expected addition or subtraction, found {}", op)
+                _ => panic!("expected addition or subtraction, found {:?}", op)
             }
         },
     }

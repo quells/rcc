@@ -3,7 +3,7 @@ use std::str;
 use std::str::FromStr;
 use std::collections::HashMap;
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum KeywordToken {
     Int,
     Return,
@@ -17,7 +17,7 @@ impl fmt::Debug for KeywordToken {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum Token {
     Unknown(u8),
     Keyword(KeywordToken),
@@ -36,26 +36,25 @@ pub enum Token {
     RBrace,
     Whitespace,
 }
-
 impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &Token::Unknown(ref c) => write!(f, "<UNKNOWN: {}>", c),
-            &Token::Keyword(ref keyword) => write!(f, "<KEYWORD: {:?}>", keyword),
-            &Token::Identifier(ref id) => write!(f, "<ID: {}>", id),
-            &Token::Integer(ref i) => write!(f, "<INT: {}>", i),
-            &Token::Semicolon => write!(f, "<SEMICOLON>"),
-            &Token::Plus => write!(f, "<PLUS>"),
-            &Token::Minus => write!(f, "<MINUS>"),
-            &Token::Star => write!(f, "<STAR>"),
-            &Token::Slash => write!(f, "<SLASH>"),
-            &Token::Tilde => write!(f, "<TILDE>"),
-            &Token::Exclamation => write!(f, "<EXCLAMATION>"),
-            &Token::LParen => write!(f, "<LPAREN>"),
-            &Token::RParen => write!(f, "<RPAREN>"),
-            &Token::LBrace => write!(f, "<LBrace>"),
-            &Token::RBrace => write!(f, "<RBrace>"),
-            &Token::Whitespace => write!(f, "<WHITESPACE>"),
+        match *self {
+            Token::Unknown(ref c) => write!(f, "<UNKNOWN: {}>", c),
+            Token::Keyword(ref keyword) => write!(f, "<KEYWORD: {:?}>", keyword),
+            Token::Identifier(ref id) => write!(f, "<ID: {}>", id),
+            Token::Integer(ref i) => write!(f, "<INT: {}>", i),
+            Token::Semicolon => write!(f, "<SEMICOLON>"),
+            Token::Plus => write!(f, "<PLUS>"),
+            Token::Minus => write!(f, "<MINUS>"),
+            Token::Star => write!(f, "<STAR>"),
+            Token::Slash => write!(f, "<SLASH>"),
+            Token::Tilde => write!(f, "<TILDE>"),
+            Token::Exclamation => write!(f, "<EXCLAMATION>"),
+            Token::LParen => write!(f, "<LPAREN>"),
+            Token::RParen => write!(f, "<RPAREN>"),
+            Token::LBrace => write!(f, "<LBrace>"),
+            Token::RBrace => write!(f, "<RBrace>"),
+            Token::Whitespace => write!(f, "<WHITESPACE>"),
         }
     }
 }

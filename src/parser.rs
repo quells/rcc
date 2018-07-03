@@ -1,16 +1,6 @@
 use std::fmt;
 use lexer::{Token, KeywordToken};
 
-// https://stackoverflow.com/questions/25576748/how-to-compare-enum-without-pattern-matching
-macro_rules! matches(
-    ($e:expr, $p:pat) => {
-        match $e {
-            $p => true,
-            _ => false
-        }
-    }
-);
-
 pub enum Program {
     Function(Function),
 }
@@ -120,49 +110,53 @@ impl fmt::Debug for BinaryOp {
 fn _eat(mut tokens: Vec<Token>, _expect: Token) -> Result<Vec<Token>, String> {
     let next_token = tokens.remove(0);
     let debug_token = next_token.clone();
-    if matches!(next_token, _expect) {
+    if next_token == _expect {
         return Ok(tokens)
     } else {
         return Err(format!("found unexpected token: {:?}", debug_token))
     }
 }
 
-fn _parse_factor(mut tokens: Vec<Token>) -> Result<(Factor, Vec<Token>), String> {
-    let first_token = tokens.remove(0);
-    match first_token {
-        Token::LParen => {
-            match _parse_expr(tokens) {
-                Ok((inner, remaining_tokens)) => {
-                    let mut copy_tokens = remaining_tokens.clone();
-                    let next_token = copy_tokens.remove(0);
-                    match next_token {
-                        Token::RParen => Ok((Factor::Expr(Box::new(inner)), copy_tokens)),
-                        _ => Err(format!("could not parse factor. expected <RParen>, found {:?}", next_token)),
+fn _parse_factor(tokens: Vec<Token>) -> Result<(Factor, Vec<Token>), String> {
+    match tokens.split_first() {
+        Some((first_token, rest)) => {
+            match first_token {
+                Token::LParen => {
+                    match _parse_expr(rest.to_vec()) {
+                        Ok((inner, remaining_tokens)) => {
+                            let mut copy_tokens = remaining_tokens.clone();
+                            let next_token = copy_tokens.remove(0);
+                            match next_token {
+                                Token::RParen => Ok((Factor::Expr(Box::new(inner)), copy_tokens)),
+                                _ => Err(format!("could not parse factor. expected <RParen>, found {:?}", next_token)),
+                            }
+                        },
+                        Err(e) => Err(e),
                     }
                 },
-                Err(e) => Err(e),
+                Token::Exclamation => {
+                    match _parse_factor(rest.to_vec()) {
+                        Ok((operand, remaining_tokens)) => Ok((Factor::UnOp(UnaryOp::LogicalNegation, Box::new(operand)), remaining_tokens)),
+                        Err(e) => Err(e),
+                    }
+                },
+                Token::Tilde => {
+                    match _parse_factor(rest.to_vec()) {
+                        Ok((operand, remaining_tokens)) => Ok((Factor::UnOp(UnaryOp::BitwiseComplement, Box::new(operand)), remaining_tokens)),
+                        Err(e) => Err(e),
+                    }
+                },
+                Token::Minus => {
+                    match _parse_factor(rest.to_vec()) {
+                        Ok((operand, remaining_tokens)) => Ok((Factor::UnOp(UnaryOp::Negation, Box::new(operand)), remaining_tokens)),
+                        Err(e) => Err(e),
+                    }
+                },
+                Token::Integer(i) => Ok((Factor::Int(*i), rest.to_vec())),
+                _ => Err(format!("could not parse factor. expected one of `(!~-`, found {:?}", first_token)),
             }
         },
-        Token::Exclamation => {
-            match _parse_factor(tokens) {
-                Ok((operand, remaining_tokens)) => Ok((Factor::UnOp(UnaryOp::LogicalNegation, Box::new(operand)), remaining_tokens)),
-                Err(e) => Err(e),
-            }
-        },
-        Token::Tilde => {
-            match _parse_factor(tokens) {
-                Ok((operand, remaining_tokens)) => Ok((Factor::UnOp(UnaryOp::BitwiseComplement, Box::new(operand)), remaining_tokens)),
-                Err(e) => Err(e),
-            }
-        },
-        Token::Minus => {
-            match _parse_factor(tokens) {
-                Ok((operand, remaining_tokens)) => Ok((Factor::UnOp(UnaryOp::Negation, Box::new(operand)), remaining_tokens)),
-                Err(e) => Err(e),
-            }
-        },
-        Token::Integer(i) => Ok((Factor::Int(i), tokens)),
-        _ => Err(format!("could not parse factor. expected one of `(!~-`, found {:?}", first_token)),
+        None => Err(format!("expected one of (!~-0123456789, found none")),
     }
 }
 

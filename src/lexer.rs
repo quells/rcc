@@ -122,5 +122,5 @@ pub fn lex(src: &[u8]) -> Vec<Token> {
             },
         }
     }
-    return tokens;
+    tokens
 }

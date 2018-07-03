@@ -1,6 +1,8 @@
 use std::fmt;
 use lexer::{Token, KeywordToken};
 
+const END_OF_TOKENS: &'static str = "unexpected end of token stream";
+
 pub enum Program {
     Function(Function),
 }
@@ -13,7 +15,7 @@ impl fmt::Debug for Program {
 }
 
 pub enum Function {
-    IntVoid(String, Statement), // identifier, statement
+    IntVoid(String, Vec<Statement>), // identifier, statement
 }
 impl fmt::Debug for Function {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -107,52 +109,57 @@ impl fmt::Debug for BinaryOp {
     }
 }
 
-fn _eat(mut tokens: Vec<Token>, _expect: Token) -> Result<Vec<Token>, String> {
-    let next_token = tokens.remove(0);
-    let debug_token = next_token.clone();
-    if next_token == _expect {
-        return Ok(tokens)
-    } else {
-        return Err(format!("found unexpected token: {:?}", debug_token))
+fn _eat(tokens: &[Token], _expect: Token) -> Result<&[Token], String> {
+    match tokens.split_first() {
+        Some((next, rest)) => {
+            match next {
+                _expect => Ok(rest),
+                _ => Err(format!("found unexpected token: {:?}", next)),
+            }
+        },
+        None => Err(format!("{}", END_OF_TOKENS)),
     }
 }
 
-fn _parse_factor(tokens: Vec<Token>) -> Result<(Factor, Vec<Token>), String> {
+fn _parse_factor(tokens: &[Token]) -> Result<(Factor, &[Token]), String> {
     match tokens.split_first() {
         Some((first_token, rest)) => {
             match first_token {
                 Token::LParen => {
-                    match _parse_expr(rest.to_vec()) {
+                    match _parse_expr(rest) {
                         Ok((inner, remaining_tokens)) => {
-                            let mut copy_tokens = remaining_tokens.clone();
-                            let next_token = copy_tokens.remove(0);
-                            match next_token {
-                                Token::RParen => Ok((Factor::Expr(Box::new(inner)), copy_tokens)),
-                                _ => Err(format!("could not parse factor. expected <RParen>, found {:?}", next_token)),
+                            match remaining_tokens.split_first() {
+                                Some((next, rest)) => {
+                                    match next {
+                                        Token::RParen => Ok((Factor::Expr(Box::new(inner)), rest)),
+                                        _ => Err(format!("could not parse factor. expected <RParen>, found {:?}", next)),
+                                    }
+                                },
+                                None => Err(format!("{}", END_OF_TOKENS)),
                             }
                         },
                         Err(e) => Err(e),
                     }
                 },
                 Token::Exclamation => {
-                    match _parse_factor(rest.to_vec()) {
+                    match _parse_factor(rest) {
                         Ok((operand, remaining_tokens)) => Ok((Factor::UnOp(UnaryOp::LogicalNegation, Box::new(operand)), remaining_tokens)),
                         Err(e) => Err(e),
                     }
                 },
                 Token::Tilde => {
-                    match _parse_factor(rest.to_vec()) {
+                    match _parse_factor(rest) {
                         Ok((operand, remaining_tokens)) => Ok((Factor::UnOp(UnaryOp::BitwiseComplement, Box::new(operand)), remaining_tokens)),
                         Err(e) => Err(e),
                     }
                 },
                 Token::Minus => {
-                    match _parse_factor(rest.to_vec()) {
+                    match _parse_factor(rest) {
                         Ok((operand, remaining_tokens)) => Ok((Factor::UnOp(UnaryOp::Negation, Box::new(operand)), remaining_tokens)),
                         Err(e) => Err(e),
                     }
                 },
-                Token::Integer(i) => Ok((Factor::Int(*i), rest.to_vec())),
+                Token::Integer(i) => Ok((Factor::Int(*i), rest)),
                 _ => Err(format!("could not parse factor. expected one of `(!~-`, found {:?}", first_token)),
             }
         },
@@ -160,116 +167,125 @@ fn _parse_factor(tokens: Vec<Token>) -> Result<(Factor, Vec<Token>), String> {
     }
 }
 
-fn _parse_term(tokens: Vec<Token>) -> Result<(Term, Vec<Token>), String> {
+fn _parse_term(tokens: &[Token]) -> Result<(Term, &[Token]), String> {
     match _parse_factor(tokens) {
-        Ok((_lhs, mut remaining_tokens)) => {
-            let mut lhs = Box::new(_lhs);
+        Ok((lhs, rest)) => {
+            let mut lhs = Box::new(lhs);
             loop {
-                let mut copy_remaining_tokens = remaining_tokens.clone();
-                match remaining_tokens.get(0) {
-                    Some(next_token) => {
-                        match *next_token {
-                            Token::Star => {
-                                let _ = copy_remaining_tokens.remove(0); // star
-                                match _parse_factor(copy_remaining_tokens) {
-                                    Ok((rhs, mut __remaining_tokens)) => {
-                                        let mult = Box::new(Term::BinOp(lhs, BinaryOp::Multiplication, Box::new(rhs)));
-                                        lhs = Box::new(Factor::Expr(Box::new(Expr::Term(mult))));
-                                        copy_remaining_tokens = __remaining_tokens;
-                                    },
-                                    Err(e) => {
-                                        println!("Error matching *: {}", e);
-                                        break
-                                    }
-                                }
-                            },
-                            Token::Slash => {
-                                let _ = copy_remaining_tokens.remove(0); // slash
-                                match _parse_factor(copy_remaining_tokens) {
-                                    Ok((rhs, mut __remaining_tokens)) => {
-                                        let div = Box::new(Term::BinOp(lhs, BinaryOp::Division, Box::new(rhs)));
-                                        lhs = Box::new(Factor::Expr(Box::new(Expr::Term(div))));
-                                        copy_remaining_tokens = __remaining_tokens;
-                                    },
-                                    Err(e) => {
-                                        println!("Error matching /: {}", e);
-                                        break
-                                    }
-                                }
-                            },
+                match rest.split_first() {
+                    Some((next, rest)) => {
+                        match next {
+                            Token::Star => return Err(format!("temp 178")),
+                            Token::Slash => return Err(format!("temp 179")),
                             _ => break,
                         }
                     },
                     None => break,
-                };
-                remaining_tokens = copy_remaining_tokens
-            };
-            Ok((Term::Factor(lhs), remaining_tokens))
+                }
+            }
+            Ok((Term::Factor(lhs), rest))
         },
-        Err(e) => Err(e)
+        Err(e) => Err(e),
     }
+    // match _parse_factor(tokens) {
+    //     Ok((_lhs, mut remaining_tokens)) => {
+    //         let mut lhs = Box::new(_lhs);
+    //         loop {
+    //             let mut copy_remaining_tokens = remaining_tokens.clone();
+    //             match remaining_tokens.get(0) {
+    //                 Some(next_token) => {
+    //                     match *next_token {
+    //                         Token::Star => {
+    //                             let _ = copy_remaining_tokens.remove(0); // star
+    //                             match _parse_factor(copy_remaining_tokens) {
+    //                                 Ok((rhs, mut __remaining_tokens)) => {
+    //                                     let mult = Box::new(Term::BinOp(lhs, BinaryOp::Multiplication, Box::new(rhs)));
+    //                                     lhs = Box::new(Factor::Expr(Box::new(Expr::Term(mult))));
+    //                                     copy_remaining_tokens = __remaining_tokens;
+    //                                 },
+    //                                 Err(e) => {
+    //                                     println!("Error matching *: {}", e);
+    //                                     break
+    //                                 }
+    //                             }
+    //                         },
+    //                         Token::Slash => {
+    //                             let _ = copy_remaining_tokens.remove(0); // slash
+    //                             match _parse_factor(copy_remaining_tokens) {
+    //                                 Ok((rhs, mut __remaining_tokens)) => {
+    //                                     let div = Box::new(Term::BinOp(lhs, BinaryOp::Division, Box::new(rhs)));
+    //                                     lhs = Box::new(Factor::Expr(Box::new(Expr::Term(div))));
+    //                                     copy_remaining_tokens = __remaining_tokens;
+    //                                 },
+    //                                 Err(e) => {
+    //                                     println!("Error matching /: {}", e);
+    //                                     break
+    //                                 }
+    //                             }
+    //                         },
+    //                         _ => break,
+    //                     }
+    //                 },
+    //                 None => break,
+    //             };
+    //             remaining_tokens = copy_remaining_tokens
+    //         };
+    //         Ok((Term::Factor(lhs), remaining_tokens))
+    //     },
+    //     Err(e) => Err(e)
+    // }
 }
 
-fn _parse_expr(tokens: Vec<Token>) -> Result<(Expr, Vec<Token>), String> {
+fn _parse_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), String> {
     match _parse_term(tokens) {
-        Ok((_lhs, mut remaining_tokens)) => {
-            let mut lhs = Box::new(_lhs);
+        Ok((lhs, mut outer)) => {
+            let mut lhs = Box::new(lhs);
             loop {
-                let mut copy_remaining_tokens = remaining_tokens.clone();
-                match remaining_tokens.get(0) {
-                    Some(next_token) => {
-                        match *next_token {
+                match outer.split_first() {
+                    Some((next, rest)) => {
+                        match next {
                             Token::Plus => {
-                                let _ = copy_remaining_tokens.remove(0); // plus
-                                match _parse_term(copy_remaining_tokens) {
-                                    Ok((rhs, mut __remaining_tokens)) => {
+                                match _parse_term(rest) {
+                                    Ok((rhs, rest)) => {
                                         let __rhs = Term::Factor(Box::new(Factor::Expr(Box::new(Expr::Term(Box::new(rhs))))));
                                         let add = Box::new(Expr::BinOp(lhs, BinaryOp::Addition, Box::new(__rhs)));
                                         lhs = Box::new(Term::Factor(Box::new(Factor::Expr(add))));
-                                        copy_remaining_tokens = __remaining_tokens;
+                                        outer = rest;
                                     },
-                                    Err(e) => {
-                                        println!("Error matching +: {}", e);
-                                        break
-                                    }
+                                    Err(e) => return Err(format!("error matching +: {}", e)),
                                 }
                             },
                             Token::Minus => {
-                                let _ = copy_remaining_tokens.remove(0); // minus
-                                match _parse_term(copy_remaining_tokens) {
-                                    Ok((rhs, mut __remaining_tokens)) => {
+                                match _parse_term(rest) {
+                                    Ok((rhs, rest)) => {
                                         let __rhs = Term::Factor(Box::new(Factor::Expr(Box::new(Expr::Term(Box::new(rhs))))));
-                                        let add = Box::new(Expr::BinOp(lhs, BinaryOp::Subtraction, Box::new(__rhs)));
-                                        lhs = Box::new(Term::Factor(Box::new(Factor::Expr(add))));
-                                        copy_remaining_tokens = __remaining_tokens;
+                                        let sub = Box::new(Expr::BinOp(lhs, BinaryOp::Subtraction, Box::new(__rhs)));
+                                        lhs = Box::new(Term::Factor(Box::new(Factor::Expr(sub))));
+                                        outer = rest;
                                     },
-                                    Err(e) => {
-                                        println!("Error matching -: {}", e);
-                                        break
-                                    }
+                                    Err(e) => return Err(format!("error matching -: {}", e)),
                                 }
                             },
                             _ => break,
                         }
                     },
                     None => break,
-                };
-                remaining_tokens = copy_remaining_tokens;
-            };
-            Ok((Expr::Term(lhs), remaining_tokens))
+                }
+            }
+            Ok((Expr::Term(lhs), outer))
         },
-        Err(e) => Err(e)
+        Err(e) => Err(e),
     }
 }
 
-fn _parse_statement(tokens: Vec<Token>) -> Result<(Statement, Vec<Token>), String> {
+fn _parse_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), String> {
     // eventually: parse assignment
     match _eat(tokens, Token::Keyword(KeywordToken::Return)) {
-        Ok(remaining_tokens) => {
-            match _parse_expr(remaining_tokens) {
-                Ok((parsed_exp, remaining_tokens)) => {
-                    match _eat(remaining_tokens, Token::Semicolon) {
-                        Ok(remaining_tokens) => Ok((Statement::Return(parsed_exp), remaining_tokens)),
+        Ok(rest) => {
+            match _parse_expr(rest) {
+                Ok((parsed_exp, rest)) => {
+                    match _eat(rest, Token::Semicolon) {
+                        Ok(rest) => Ok((Statement::Return(parsed_exp), rest)),
                         Err(e) => Err(e)
                     }
                 },
@@ -280,54 +296,80 @@ fn _parse_statement(tokens: Vec<Token>) -> Result<(Statement, Vec<Token>), Strin
     }
 }
 
-fn _parse_function(tokens: Vec<Token>) -> Result<(Function, Vec<Token>), String> {
+fn _parse_statement_list(tokens: &[Token]) -> (Vec<Statement>, &[Token]) {
+    let mut statements = Vec::new();
+    let mut outer = tokens;
+    loop {
+        match _parse_statement(outer) {
+            Ok((statement, rest)) => {
+                statements.push(statement);
+                outer = rest;
+            },
+            Err(_) => break,
+        }
+    }
+    (statements, outer)
+}
+
+fn _parse_function_parameters(tokens: &[Token]) -> Result<((), &[Token]), String> {
+    Ok(((), tokens))
+}
+
+fn _parse_function(tokens: &[Token]) -> Result<(Function, &[Token]), String> {
     match _eat(tokens, Token::Keyword(KeywordToken::Int)) {
-        Ok(mut remaining_tokens) => {
-            let fn_id = remaining_tokens.remove(0);
-            match fn_id {
-                Token::Identifier(id) => {
-                    match _eat(remaining_tokens, Token::LParen) {
-                        Ok(remaining_tokens) => {
-                            // eventually: parse function paramenters
-                            match _eat(remaining_tokens, Token::RParen) {
-                                Ok(remaining_tokens) => {
-                                    match _eat(remaining_tokens, Token::LBrace) {
-                                        Ok(remaining_tokens) => {
-                                            // eventually: parse list of statements
-                                            match _parse_statement(remaining_tokens) {
-                                                Ok((parsed_statement, remaining_tokens)) => {
-                                                    match _eat(remaining_tokens, Token::RBrace) {
-                                                        Ok(remaining_tokens) => Ok((Function::IntVoid(id, parsed_statement), remaining_tokens)),
-                                                        Err(e) => Err(e)
+        Ok(rest) => {
+            match rest.split_first() {
+                Some((fn_id, rest)) => {
+                    match fn_id {
+                        Token::Identifier(id) => {
+                            match _eat(rest, Token::LParen) {
+                                Ok(rest) => {
+                                    match _parse_function_parameters(rest) {
+                                        // eventually: deal with function parameters
+                                        Ok((_, rest)) => {
+                                            match _eat(rest, Token::RParen) {
+                                                Ok(rest) => {
+                                                    match _eat(rest, Token::LBrace) {
+                                                        Ok(rest) => {
+                                                            let (parsed_statements, rest) = _parse_statement_list(rest);
+                                                            match _eat(rest, Token::RBrace) {
+                                                                Ok(rest) => {
+                                                                    let parsed_function = Function::IntVoid(id.to_string(), parsed_statements);
+                                                                    Ok((parsed_function, rest))
+                                                                },
+                                                                Err(e) => Err(e),
+                                                            }
+                                                        },
+                                                        Err(e) => Err(e),
                                                     }
                                                 },
-                                                Err(e) => Err(e)
+                                                Err(e) => Err(e),
                                             }
                                         },
-                                        Err(e) => Err(e)
+                                        Err(e) => Err(e),
                                     }
                                 },
-                                Err(e) => Err(e)
+                                Err(e) => Err(e),
                             }
                         },
-                        Err(e) => Err(e)
+                        _ => Err(format!("missing expected identifier token")),
                     }
                 },
-                _ => Err("missing expected identifier token".to_string())
+                None => Err(format!("{}", END_OF_TOKENS)),
             }
         },
         Err(e) => Err(e)
     }
 }
 
-fn _parse_program(tokens: Vec<Token>) -> Result<(Program, Vec<Token>), String> {
+fn _parse_program(tokens: &[Token]) -> Result<(Program, &[Token]), String> {
     match _parse_function(tokens) {
         Ok((function, remaining)) => Ok((Program::Function(function), remaining)),
         Err(err) => Err(err),
     }
 }
 
-pub fn parse(tokens: Vec<Token>) -> Result<Program, String> {
+pub fn parse(tokens: &[Token]) -> Result<Program, String> {
     match _parse_program(tokens) {
         Ok((program, remaining)) => {
             match remaining.len() {

@@ -105,11 +105,15 @@ fn _generate_statement(statement: Statement) -> String {
 
 fn _generate_function(function: Function) -> String {
     match function {
-        Function::IntVoid(id, stmt) => {
-            let stmt_asm = _generate_statement(stmt);
-            format!(r"_{}
+        Function::IntVoid(id, stmts) => {
+            let mut asm = String::new();
+            for stmt in stmts {
+                let stmt_asm = _generate_statement(stmt);
+                asm = format!(r"_{}
 _{}:
 {}", id, id, stmt_asm)
+            }
+            asm
         },
     }
 }

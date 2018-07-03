@@ -15,11 +15,11 @@ pub fn run(config: config::Config) -> Result<(), Box<Error>> {
     sf.read_to_string(&mut contents)?;
     let characters = (&contents).as_bytes();
 
-    println!("Lexing {} characters", characters.len());
+    println!("Lexing {} characters", &characters.len());
     let tokens = lexer::lex(characters);
 
-    println!("Parsing {} tokens", tokens.len());
-    let ast = parser::parse(tokens)?;
+    println!("Parsing {} tokens", &tokens.len());
+    let ast = parser::parse(&tokens)?;
 
     println!("Generating code for: {:?}", ast);
     let asm = generator_gas::generate(ast);

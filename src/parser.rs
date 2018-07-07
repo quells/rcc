@@ -109,24 +109,25 @@ impl fmt::Debug for BinaryOp {
     }
 }
 
-fn _eat(tokens: &[Token], _expect: Token) -> Result<&[Token], String> {
+fn eat(tokens: &[Token], expect: Token) -> Result<&[Token], String> {
     match tokens.split_first() {
         Some((next, rest)) => {
-            match next {
-                _expect => Ok(rest),
-                _ => Err(format!("found unexpected token: {:?}", next)),
+            if *next == expect {
+                Ok(rest)
+            } else {
+                Err(format!("found unexpected token: {:?}", next))
             }
         },
         None => Err(format!("{}", END_OF_TOKENS)),
     }
 }
 
-fn _parse_factor(tokens: &[Token]) -> Result<(Factor, &[Token]), String> {
+fn parse_factor(tokens: &[Token]) -> Result<(Factor, &[Token]), String> {
     match tokens.split_first() {
         Some((first_token, rest)) => {
             match first_token {
                 Token::LParen => {
-                    match _parse_expr(rest) {
+                    match parse_expr(rest) {
                         Ok((inner, remaining_tokens)) => {
                             match remaining_tokens.split_first() {
                                 Some((next, rest)) => {
@@ -142,19 +143,19 @@ fn _parse_factor(tokens: &[Token]) -> Result<(Factor, &[Token]), String> {
                     }
                 },
                 Token::Exclamation => {
-                    match _parse_factor(rest) {
+                    match parse_factor(rest) {
                         Ok((operand, remaining_tokens)) => Ok((Factor::UnOp(UnaryOp::LogicalNegation, Box::new(operand)), remaining_tokens)),
                         Err(e) => Err(e),
                     }
                 },
                 Token::Tilde => {
-                    match _parse_factor(rest) {
+                    match parse_factor(rest) {
                         Ok((operand, remaining_tokens)) => Ok((Factor::UnOp(UnaryOp::BitwiseComplement, Box::new(operand)), remaining_tokens)),
                         Err(e) => Err(e),
                     }
                 },
                 Token::Minus => {
-                    match _parse_factor(rest) {
+                    match parse_factor(rest) {
                         Ok((operand, remaining_tokens)) => Ok((Factor::UnOp(UnaryOp::Negation, Box::new(operand)), remaining_tokens)),
                         Err(e) => Err(e),
                     }
@@ -167,8 +168,8 @@ fn _parse_factor(tokens: &[Token]) -> Result<(Factor, &[Token]), String> {
     }
 }
 
-fn _parse_term(tokens: &[Token]) -> Result<(Term, &[Token]), String> {
-    match _parse_factor(tokens) {
+fn parse_term(tokens: &[Token]) -> Result<(Term, &[Token]), String> {
+    match parse_factor(tokens) {
         Ok((lhs, rest)) => {
             let mut lhs = Box::new(lhs);
             loop {
@@ -187,7 +188,7 @@ fn _parse_term(tokens: &[Token]) -> Result<(Term, &[Token]), String> {
         },
         Err(e) => Err(e),
     }
-    // match _parse_factor(tokens) {
+    // match parse_factor(tokens) {
     //     Ok((_lhs, mut remaining_tokens)) => {
     //         let mut lhs = Box::new(_lhs);
     //         loop {
@@ -197,7 +198,7 @@ fn _parse_term(tokens: &[Token]) -> Result<(Term, &[Token]), String> {
     //                     match *next_token {
     //                         Token::Star => {
     //                             let _ = copy_remaining_tokens.remove(0); // star
-    //                             match _parse_factor(copy_remaining_tokens) {
+    //                             match parse_factor(copy_remaining_tokens) {
     //                                 Ok((rhs, mut __remaining_tokens)) => {
     //                                     let mult = Box::new(Term::BinOp(lhs, BinaryOp::Multiplication, Box::new(rhs)));
     //                                     lhs = Box::new(Factor::Expr(Box::new(Expr::Term(mult))));
@@ -211,7 +212,7 @@ fn _parse_term(tokens: &[Token]) -> Result<(Term, &[Token]), String> {
     //                         },
     //                         Token::Slash => {
     //                             let _ = copy_remaining_tokens.remove(0); // slash
-    //                             match _parse_factor(copy_remaining_tokens) {
+    //                             match parse_factor(copy_remaining_tokens) {
     //                                 Ok((rhs, mut __remaining_tokens)) => {
     //                                     let div = Box::new(Term::BinOp(lhs, BinaryOp::Division, Box::new(rhs)));
     //                                     lhs = Box::new(Factor::Expr(Box::new(Expr::Term(div))));
@@ -236,8 +237,8 @@ fn _parse_term(tokens: &[Token]) -> Result<(Term, &[Token]), String> {
     // }
 }
 
-fn _parse_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), String> {
-    match _parse_term(tokens) {
+fn parse_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), String> {
+    match parse_term(tokens) {
         Ok((lhs, mut outer)) => {
             let mut lhs = Box::new(lhs);
             loop {
@@ -245,7 +246,7 @@ fn _parse_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), String> {
                     Some((next, rest)) => {
                         match next {
                             Token::Plus => {
-                                match _parse_term(rest) {
+                                match parse_term(rest) {
                                     Ok((rhs, rest)) => {
                                         let __rhs = Term::Factor(Box::new(Factor::Expr(Box::new(Expr::Term(Box::new(rhs))))));
                                         let add = Box::new(Expr::BinOp(lhs, BinaryOp::Addition, Box::new(__rhs)));
@@ -256,7 +257,7 @@ fn _parse_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), String> {
                                 }
                             },
                             Token::Minus => {
-                                match _parse_term(rest) {
+                                match parse_term(rest) {
                                     Ok((rhs, rest)) => {
                                         let __rhs = Term::Factor(Box::new(Factor::Expr(Box::new(Expr::Term(Box::new(rhs))))));
                                         let sub = Box::new(Expr::BinOp(lhs, BinaryOp::Subtraction, Box::new(__rhs)));
@@ -278,13 +279,13 @@ fn _parse_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), String> {
     }
 }
 
-fn _parse_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), String> {
+fn parse_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), String> {
     // eventually: parse assignment
-    match _eat(tokens, Token::Keyword(KeywordToken::Return)) {
+    match eat(tokens, Token::Keyword(KeywordToken::Return)) {
         Ok(rest) => {
-            match _parse_expr(rest) {
+            match parse_expr(rest) {
                 Ok((parsed_exp, rest)) => {
-                    match _eat(rest, Token::Semicolon) {
+                    match eat(rest, Token::Semicolon) {
                         Ok(rest) => Ok((Statement::Return(parsed_exp), rest)),
                         Err(e) => Err(e)
                     }
@@ -296,11 +297,11 @@ fn _parse_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), String> {
     }
 }
 
-fn _parse_statement_list(tokens: &[Token]) -> (Vec<Statement>, &[Token]) {
+fn parse_statement_list(tokens: &[Token]) -> (Vec<Statement>, &[Token]) {
     let mut statements = Vec::new();
     let mut outer = tokens;
     loop {
-        match _parse_statement(outer) {
+        match parse_statement(outer) {
             Ok((statement, rest)) => {
                 statements.push(statement);
                 outer = rest;
@@ -311,28 +312,28 @@ fn _parse_statement_list(tokens: &[Token]) -> (Vec<Statement>, &[Token]) {
     (statements, outer)
 }
 
-fn _parse_function_parameters(tokens: &[Token]) -> Result<((), &[Token]), String> {
+fn parse_function_parameters(tokens: &[Token]) -> Result<((), &[Token]), String> {
     Ok(((), tokens))
 }
 
-fn _parse_function(tokens: &[Token]) -> Result<(Function, &[Token]), String> {
-    match _eat(tokens, Token::Keyword(KeywordToken::Int)) {
+fn parse_function(tokens: &[Token]) -> Result<(Function, &[Token]), String> {
+    match eat(tokens, Token::Keyword(KeywordToken::Int)) {
         Ok(rest) => {
             match rest.split_first() {
                 Some((fn_id, rest)) => {
                     match fn_id {
                         Token::Identifier(id) => {
-                            match _eat(rest, Token::LParen) {
+                            match eat(rest, Token::LParen) {
                                 Ok(rest) => {
-                                    match _parse_function_parameters(rest) {
+                                    match parse_function_parameters(rest) {
                                         // eventually: deal with function parameters
                                         Ok((_, rest)) => {
-                                            match _eat(rest, Token::RParen) {
+                                            match eat(rest, Token::RParen) {
                                                 Ok(rest) => {
-                                                    match _eat(rest, Token::LBrace) {
+                                                    match eat(rest, Token::LBrace) {
                                                         Ok(rest) => {
-                                                            let (parsed_statements, rest) = _parse_statement_list(rest);
-                                                            match _eat(rest, Token::RBrace) {
+                                                            let (parsed_statements, rest) = parse_statement_list(rest);
+                                                            match eat(rest, Token::RBrace) {
                                                                 Ok(rest) => {
                                                                     let parsed_function = Function::IntVoid(id.to_string(), parsed_statements);
                                                                     Ok((parsed_function, rest))
@@ -362,21 +363,19 @@ fn _parse_function(tokens: &[Token]) -> Result<(Function, &[Token]), String> {
     }
 }
 
-fn _parse_program(tokens: &[Token]) -> Result<(Program, &[Token]), String> {
-    match _parse_function(tokens) {
+fn parse_program(tokens: &[Token]) -> Result<(Program, &[Token]), String> {
+    match parse_function(tokens) {
         Ok((function, remaining)) => Ok((Program::Function(function), remaining)),
         Err(err) => Err(err),
     }
 }
 
 pub fn parse(tokens: &[Token]) -> Result<Program, String> {
-    match _parse_program(tokens) {
+    match parse_program(tokens) {
         Ok((program, remaining)) => {
             match remaining.len() {
                 0 => Ok(program),
-                _ => {
-                    Err(format!("unexpected tokens found after parsing program: {:?}", remaining))
-                },
+                _ => Err(format!("unexpected tokens found after parsing program: {:?}", remaining)),
             }
         },
         Err(err) => Err(err),

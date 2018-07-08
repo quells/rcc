@@ -7,15 +7,19 @@ pub mod lexer;
 pub mod parser;
 pub mod generator_gas;
 
-pub fn run(input: &str, output: &str, verbose: bool) -> Result<(), Box<Error>> {
-    if verbose { println!("Reading source from {}", input); }
-    let mut src_file = File::open(input)?;
+pub fn read_file_bytes(filename: &str) -> Result<Vec<u8>, Box<Error>> {
+    let mut src_file = File::open(filename)?;
     let mut src_text = String::new();
     src_file.read_to_string(&mut src_text)?;
-    let characters = (&src_text).as_bytes();
+    Ok((&src_text).as_bytes().to_vec())
+}
+
+pub fn compile(input: &str, output: &str, verbose: bool) -> Result<(), Box<Error>> {
+    if verbose { println!("Reading source from {}", input); }
+    let characters = read_file_bytes(input)?;
 
     if verbose { println!("Lexing {} characters", &characters.len()); }
-    let tokens = lexer::lex(characters);
+    let tokens = lexer::lex(&characters);
 
     if verbose { println!("Parsing {} tokens", &tokens.len()); }
     let ast = parser::parse(&tokens)?;

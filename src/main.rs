@@ -18,6 +18,10 @@ fn main() {
             [-o <OUTPUT>] 'Destination file for compilation'
             -v            'Print debug messages'"
         )
+        .subcommand(clap::SubCommand::with_name("lex")
+            .about("Just emit the lex'd tokens"))
+        .subcommand(clap::SubCommand::with_name("parse")
+            .about("Just emit the parsed AST"))
         .get_matches();
     
     let input_file = matches.value_of("INPUT").unwrap_or_else(|| {
@@ -28,7 +32,36 @@ fn main() {
     let output_file = matches.value_of("OUTPUT").unwrap_or(&default_output_file);
     let verbose = matches.is_present("v");
 
-    if let Err(e) = rcc::run(&input_file, &output_file, verbose) {
+    if let Some(_) = matches.subcommand_matches("lex") {
+        if verbose { println!("Reading source from {}", input_file); }
+        let characters = rcc::read_file_bytes(input_file).unwrap_or_else(|e| {
+            eprintln!("Could not read {}: {}", input_file, e);
+            exit(1);
+        });
+
+        if verbose { println!("Lexing {} characters", &characters.len()); }
+        let tokens = rcc::lexer::lex(&characters);
+        
+        println!("{:?}", tokens);
+    } else if let Some(_) = matches.subcommand_matches("parse") {
+        if verbose { println!("Reading source from {}", input_file); }
+        let characters = rcc::read_file_bytes(input_file).unwrap_or_else(|e| {
+            eprintln!("Could not read {}: {}", input_file, e);
+            exit(1);
+        });
+
+        if verbose { println!("Lexing {} characters", &characters.len()); }
+        let tokens = rcc::lexer::lex(&characters);
+        if verbose { println!("{:?}", tokens); }
+
+        if verbose { println!("Parsing {} tokens", &tokens.len()); }
+        let ast = rcc::parser::parse(&tokens).unwrap_or_else(|e| {
+            eprintln!("Could not parse tokens: {}", e);
+            exit(1);
+        });
+
+        println!("{:?}", ast);
+    } else if let Err(e) = rcc::compile(&input_file, &output_file, verbose) {
         eprintln!("Compilation error: {}", e);
         exit(1);
     }

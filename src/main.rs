@@ -4,7 +4,7 @@ extern crate clap;
 extern crate rcc;
 
 const PROGRAM_NAME: &'static str = "rcc";
-const VERSION_NUMBER: &'static str = "0.3.1";
+const VERSION_NUMBER: &'static str = "0.4.0";
 const PROGRAM_AUTHOR: &'static str = "Kai Wells <support@kaiwells.me>";
 const PROGRAM_DESCRIPTION: &'static str = "A very simple C compiler";
 
@@ -33,44 +33,37 @@ fn main() {
     let verbose = matches.is_present("v");
 
     if let Some(_) = matches.subcommand_matches("lex") {
-        if verbose { println!("Reading source from {}", input_file); }
-        let characters = rcc::read_file_bytes(input_file).unwrap_or_else(|e| {
-            eprintln!("Could not read {}: {}", input_file, e);
-            exit(1);
-        });
-
-        if verbose { println!("Lexing {} characters", &characters.len()); }
-        let debug_tokens = rcc::lexer::lex(&characters);
-        println!("{:?}", &debug_tokens);
-        let tokens: Vec<rcc::lexer::Token> = debug_tokens
-            .into_iter()
-            .map(|t| t.token )
-            .collect();
-        
+        let tokens = read_file_and_lex(input_file, verbose);
         println!("{:?}", tokens);
     } else if let Some(_) = matches.subcommand_matches("parse") {
-        if verbose { println!("Reading source from {}", input_file); }
-        let characters = rcc::read_file_bytes(input_file).unwrap_or_else(|e| {
-            eprintln!("Could not read {}: {}", input_file, e);
-            exit(1);
-        });
-
-        if verbose { println!("Lexing {} characters", &characters.len()); }
-        let tokens: Vec<rcc::lexer::Token> = rcc::lexer::lex(&characters)
-            .into_iter()
-            .map(|t| t.token )
-            .collect();
-        if verbose { println!("{:?}", tokens); }
-
-        if verbose { println!("Parsing {} tokens", &tokens.len()); }
-        let ast = rcc::parser::parse(&tokens).unwrap_or_else(|e| {
-            eprintln!("Could not parse tokens: {}", e);
-            exit(1);
-        });
-
+        let ast = read_file_lex_and_parse(input_file, verbose);
         println!("{:?}", ast);
     } else if let Err(e) = rcc::compile(&input_file, &output_file, verbose) {
         eprintln!("Compilation error: {}", e);
         exit(1);
     }
+}
+
+fn read_file_and_lex(input_file: &str, verbose: bool) -> Vec<rcc::lexer::Token> {
+    if verbose { println!("Reading source from {}", input_file); }
+    let characters = rcc::read_file_bytes(input_file).unwrap_or_else(|e| {
+        eprintln!("Could not read {}: {}", input_file, e);
+        exit(1);
+    });
+
+    if verbose { println!("Lexing {} characters", &characters.len()); }
+    
+    rcc::lexer::lex(&characters)
+        .into_iter()
+        .map(|t| t.token )
+        .collect()
+}
+
+fn read_file_lex_and_parse(input_file: &str, verbose: bool) -> rcc::parser::Program {
+    let tokens = read_file_and_lex(input_file, verbose);
+    if verbose { println!("Parsing {} tokens", &tokens.len()); }
+    rcc::parser::parse(&tokens).unwrap_or_else(|e| {
+        eprintln!("Could not parse tokens: {}", e);
+        exit(1);
+    })
 }

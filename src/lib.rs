@@ -19,10 +19,7 @@ pub fn compile(input: &str, output: &str, verbose: bool) -> Result<(), Box<Error
     let characters = read_file_bytes(input)?;
 
     if verbose { println!("Lexing {} characters", &characters.len()); }
-    let tokens: Vec<lexer::Token> = lexer::lex(&characters)
-        .into_iter()
-        .map(|t| t.token )
-        .collect();
+    let tokens = lexer::lex(&characters);
 
     if verbose { println!("Parsing {} tokens", &tokens.len()); }
     let ast = parser::parse(&tokens)?;

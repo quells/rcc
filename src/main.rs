@@ -33,8 +33,9 @@ fn main() {
     let verbose = matches.is_present("v");
 
     if let Some(_) = matches.subcommand_matches("lex") {
-        let tokens = read_file_and_lex(input_file, verbose);
-        println!("{:?}", tokens);
+        for token in read_file_and_lex(input_file, verbose) {
+            println!("{:?}", token);
+        }
     } else if let Some(_) = matches.subcommand_matches("parse") {
         let ast = read_file_lex_and_parse(input_file, verbose);
         println!("{:?}", ast);
@@ -44,7 +45,7 @@ fn main() {
     }
 }
 
-fn read_file_and_lex(input_file: &str, verbose: bool) -> Vec<rcc::lexer::Token> {
+fn read_file_and_lex(input_file: &str, verbose: bool) -> Vec<rcc::lexer::DebugToken> {
     if verbose { println!("Reading source from {}", input_file); }
     let characters = rcc::read_file_bytes(input_file).unwrap_or_else(|e| {
         eprintln!("Could not read {}: {}", input_file, e);
@@ -54,9 +55,6 @@ fn read_file_and_lex(input_file: &str, verbose: bool) -> Vec<rcc::lexer::Token> 
     if verbose { println!("Lexing {} characters", &characters.len()); }
     
     rcc::lexer::lex(&characters)
-        .into_iter()
-        .map(|t| t.token )
-        .collect()
 }
 
 fn read_file_lex_and_parse(input_file: &str, verbose: bool) -> rcc::parser::Program {

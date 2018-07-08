@@ -1,5 +1,5 @@
 use std::fmt;
-use lexer::{Token, KeywordToken};
+use lexer::{DebugToken, Token, KeywordToken};
 
 const END_OF_TOKENS: &'static str = "unexpected end of token stream";
 
@@ -26,7 +26,7 @@ impl fmt::Debug for Function {
 }
 
 pub enum Statement {
-    Return(Expr),
+    Return(LogicalOrExpr),
 }
 impl fmt::Debug for Statement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -41,24 +41,24 @@ trait RecursiveHierarchy<P> {
 }
 
 #[derive(Clone)]
-pub enum Expr {
+pub enum LogicalOrExpr {
     LogicalAndExpr(Box<LogicalAndExpr>),
     BinOp(Box<LogicalAndExpr>, BinaryOp, Box<LogicalAndExpr>),
 }
-impl fmt::Debug for Expr {
+impl fmt::Debug for LogicalOrExpr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &Expr::LogicalAndExpr(ref t) => write!(f, "{:?}", t),
-            &Expr::BinOp(ref a, ref op, ref b) => write!(f, "expr({:?}{:?}{:?})", a, op, b),
+            &LogicalOrExpr::LogicalAndExpr(ref t) => write!(f, "{:?}", t),
+            &LogicalOrExpr::BinOp(ref a, ref op, ref b) => write!(f, "expr({:?}{:?}{:?})", a, op, b),
         }
     }
 }
-impl RecursiveHierarchy<Factor> for Expr {
+impl RecursiveHierarchy<Factor> for LogicalOrExpr {
     fn wrap_in_parent(&self) -> Factor {
-        Factor::Expr(Box::new(self.clone()))
+        Factor::LogicalOrExpr(Box::new(self.clone()))
     }
 }
-impl Expr {
+impl LogicalOrExpr {
     fn wrap_in_child(&self) -> LogicalAndExpr {
         self.wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent()
     }
@@ -77,9 +77,9 @@ impl fmt::Debug for LogicalAndExpr {
         }
     }
 }
-impl RecursiveHierarchy<Expr> for LogicalAndExpr {
-    fn wrap_in_parent(&self) -> Expr {
-        Expr::LogicalAndExpr(Box::new(self.clone()))
+impl RecursiveHierarchy<LogicalOrExpr> for LogicalAndExpr {
+    fn wrap_in_parent(&self) -> LogicalOrExpr {
+        LogicalOrExpr::LogicalAndExpr(Box::new(self.clone()))
     }
 }
 impl LogicalAndExpr {
@@ -186,14 +186,14 @@ impl Term {
 
 #[derive(Clone)]
 pub enum Factor {
-    Expr(Box<Expr>),
+    LogicalOrExpr(Box<LogicalOrExpr>),
     UnOp(UnaryOp, Box<Factor>),
     Int(i32),
 }
 impl fmt::Debug for Factor {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &Factor::Expr(ref e) => write!(f, "{:?}", e),
+            &Factor::LogicalOrExpr(ref e) => write!(f, "{:?}", e),
             &Factor::UnOp(ref op, ref x) => write!(f, "{:?}{:?}", op, x),
             &Factor::Int(ref i) => write!(f, "{}", i),
         }
@@ -205,7 +205,7 @@ impl RecursiveHierarchy<Term> for Factor {
     }
 }
 impl Factor {
-    fn wrap_in_child(&self) -> Expr {
+    fn wrap_in_child(&self) -> LogicalOrExpr {
         self.wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent()
     }
 }
@@ -260,31 +260,31 @@ impl fmt::Debug for BinaryOp {
     }
 }
 
-fn eat(tokens: &[Token], expect: Token) -> Result<&[Token], String> {
+fn eat(tokens: &[DebugToken], expect: Token) -> Result<&[DebugToken], String> {
     match tokens.split_first() {
         Some((next, rest)) => {
-            if *next == expect {
+            if next.token == expect {
                 Ok(rest)
             } else {
-                Err(format!("found unexpected token: {:?}", next))
+                Err(format!("found unexpected token `{:?}` near l{} c{}", next.token, next.line, next.character))
             }
         },
         None => Err(format!("{}", END_OF_TOKENS)),
     }
 }
 
-fn parse_factor(tokens: &[Token]) -> Result<(Factor, &[Token]), String> {
+fn parse_factor(tokens: &[DebugToken]) -> Result<(Factor, &[DebugToken]), String> {
     match tokens.split_first() {
         Some((first_token, rest)) => {
-            match first_token {
+            match first_token.token {
                 Token::LParen => {
-                    match parse_expr(rest) {
+                    match parse_logical_or_expr(rest) {
                         Ok((inner, remaining_tokens)) => {
                             match remaining_tokens.split_first() {
                                 Some((next, rest)) => {
-                                    match next {
+                                    match next.token {
                                         Token::RParen => Ok((inner.wrap_in_parent(), rest)),
-                                        _ => Err(format!("could not parse factor. expected <RParen>, found {:?}", next)),
+                                        _ => Err(format!("could not parse factor. expected <RParen>, found {:?} near l{} c{}", next.token, next.line, next.character)),
                                     }
                                 },
                                 None => Err(format!("{}", END_OF_TOKENS)),
@@ -320,22 +320,22 @@ fn parse_factor(tokens: &[Token]) -> Result<(Factor, &[Token]), String> {
                         Err(e) => Err(e),
                     }
                 },
-                Token::Integer(i) => Ok((Factor::Int(*i), rest)),
-                _ => Err(format!("could not parse factor. expected one of `(!~-`, found {:?}", first_token)),
+                Token::Integer(i) => Ok((Factor::Int(i), rest)),
+                _ => Err(format!("could not parse factor. expected one of `(!~-`, found {:?} near l{} c{}", first_token.token, first_token.line, first_token.character)),
             }
         },
         None => Err(format!("expected one of (!~-0123456789, found none")),
     }
 }
 
-fn parse_term(tokens: &[Token]) -> Result<(Term, &[Token]), String> {
+fn parse_term(tokens: &[DebugToken]) -> Result<(Term, &[DebugToken]), String> {
     match parse_factor(tokens) {
         Ok((lhs, mut outer)) => {
             let mut lhs = Box::new(lhs);
             loop {
                 match outer.split_first() {
                     Some((next, rest)) => {
-                        match next {
+                        match next.token {
                             Token::Star => {
                                 match parse_factor(rest) {
                                     Ok((rhs, rest)) => {
@@ -345,7 +345,7 @@ fn parse_term(tokens: &[Token]) -> Result<(Term, &[Token]), String> {
                                             .wrap_in_parent().wrap_in_parent());
                                         outer = rest;
                                     },
-                                    Err(e) => return Err(format!("error matching *: {}", e)),
+                                    Err(e) => return Err(format!("error matching * operation: {}", e)),
                                 }
                             },
                             Token::Slash => {
@@ -357,7 +357,7 @@ fn parse_term(tokens: &[Token]) -> Result<(Term, &[Token]), String> {
                                             .wrap_in_parent().wrap_in_parent());
                                         outer = rest;
                                     },
-                                    Err(e) => return Err(format!("error matching /: {}", e)),
+                                    Err(e) => return Err(format!("error matching / operation: {}", e)),
                                 }
                             },
                             _ => break,
@@ -372,14 +372,14 @@ fn parse_term(tokens: &[Token]) -> Result<(Term, &[Token]), String> {
     }
 }
 
-fn parse_additive_expr(tokens: &[Token]) -> Result<(AdditiveExpr, &[Token]), String> {
+fn parse_additive_expr(tokens: &[DebugToken]) -> Result<(AdditiveExpr, &[DebugToken]), String> {
     match parse_term(tokens) {
         Ok((lhs, mut outer)) => {
             let mut lhs = Box::new(lhs);
             loop {
                 match outer.split_first() {
                     Some((next, rest)) => {
-                        match next {
+                        match next.token {
                             Token::Plus => {
                                 match parse_term(rest) {
                                     Ok((_rhs, rest)) => {
@@ -388,7 +388,7 @@ fn parse_additive_expr(tokens: &[Token]) -> Result<(AdditiveExpr, &[Token]), Str
                                         lhs = Box::new(add.wrap_in_child());
                                         outer = rest;
                                     },
-                                    Err(e) => return Err(format!("error matching +: {}", e)),
+                                    Err(e) => return Err(format!("error matching + operation: {}", e)),
                                 }
                             },
                             Token::Minus => {
@@ -399,7 +399,7 @@ fn parse_additive_expr(tokens: &[Token]) -> Result<(AdditiveExpr, &[Token]), Str
                                         lhs = Box::new(sub.wrap_in_child());
                                         outer = rest;
                                     },
-                                    Err(e) => return Err(format!("error matching -: {}", e)),
+                                    Err(e) => return Err(format!("error matching - operation: {}", e)),
                                 }
                             },
                             _ => break,
@@ -414,27 +414,27 @@ fn parse_additive_expr(tokens: &[Token]) -> Result<(AdditiveExpr, &[Token]), Str
     }
 }
 
-fn parse_relational_expr(tokens: &[Token]) -> Result<(RelationalExpr, &[Token]), String> {
+fn parse_relational_expr(tokens: &[DebugToken]) -> Result<(RelationalExpr, &[DebugToken]), String> {
     Err("relational expr here".to_string())
 }
 
-fn parse_equality_expr(tokens: &[Token]) -> Result<(EqualityExpr, &[Token]), String> {
+fn parse_equality_expr(tokens: &[DebugToken]) -> Result<(EqualityExpr, &[DebugToken]), String> {
     Err("equality expr here".to_string())
 }
 
-fn parse_logical_and_expr(tokens: &[Token]) -> Result<(LogicalAndExpr, &[Token]), String> {
+fn parse_logical_and_expr(tokens: &[DebugToken]) -> Result<(LogicalAndExpr, &[DebugToken]), String> {
     Err("logical and expr here".to_string())
 }
 
-fn parse_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), String> {
-    Err("expr here".to_string())
+fn parse_logical_or_expr(tokens: &[DebugToken]) -> Result<(LogicalOrExpr, &[DebugToken]), String> {
+    Err("logical or expr here".to_string())
 }
 
-fn parse_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), String> {
+fn parse_statement(tokens: &[DebugToken]) -> Result<(Statement, &[DebugToken]), String> {
     // eventually: parse assignment
     match eat(tokens, Token::Keyword(KeywordToken::Return)) {
         Ok(rest) => {
-            match parse_expr(rest) {
+            match parse_logical_or_expr(rest) {
                 Ok((parsed_exp, rest)) => {
                     match eat(rest, Token::Semicolon) {
                         Ok(rest) => Ok((Statement::Return(parsed_exp), rest)),
@@ -448,7 +448,7 @@ fn parse_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), String> {
     }
 }
 
-fn parse_statement_list(tokens: &[Token]) -> (Vec<Statement>, &[Token]) {
+fn parse_statement_list(tokens: &[DebugToken]) -> (Vec<Statement>, &[DebugToken]) {
     let mut statements = Vec::new();
     let mut outer = tokens;
     loop {
@@ -463,17 +463,17 @@ fn parse_statement_list(tokens: &[Token]) -> (Vec<Statement>, &[Token]) {
     (statements, outer)
 }
 
-fn parse_function_parameters(tokens: &[Token]) -> Result<((), &[Token]), String> {
+fn parse_function_parameters(tokens: &[DebugToken]) -> Result<((), &[DebugToken]), String> {
     Ok(((), tokens))
 }
 
-fn parse_function(tokens: &[Token]) -> Result<(Function, &[Token]), String> {
+fn parse_function(tokens: &[DebugToken]) -> Result<(Function, &[DebugToken]), String> {
     match eat(tokens, Token::Keyword(KeywordToken::Int)) {
         Ok(rest) => {
             match rest.split_first() {
                 Some((fn_id, rest)) => {
-                    match fn_id {
-                        Token::Identifier(id) => {
+                    match fn_id.token {
+                        Token::Identifier(ref id) => {
                             match eat(rest, Token::LParen) {
                                 Ok(rest) => {
                                     match parse_function_parameters(rest) {
@@ -504,7 +504,7 @@ fn parse_function(tokens: &[Token]) -> Result<(Function, &[Token]), String> {
                                 Err(e) => Err(e),
                             }
                         },
-                        _ => Err(format!("missing expected identifier token")),
+                        _ => Err(format!("expected identifier token, found {:?} near l{} c{}", fn_id.token, fn_id.line, fn_id.character)),
                     }
                 },
                 None => Err(format!("{}", END_OF_TOKENS)),
@@ -514,14 +514,14 @@ fn parse_function(tokens: &[Token]) -> Result<(Function, &[Token]), String> {
     }
 }
 
-fn parse_program(tokens: &[Token]) -> Result<(Program, &[Token]), String> {
+fn parse_program(tokens: &[DebugToken]) -> Result<(Program, &[DebugToken]), String> {
     match parse_function(tokens) {
         Ok((function, remaining)) => Ok((Program::Function(function), remaining)),
         Err(err) => Err(err),
     }
 }
 
-pub fn parse(tokens: &[Token]) -> Result<Program, String> {
+pub fn parse(tokens: &[DebugToken]) -> Result<Program, String> {
     match parse_program(tokens) {
         Ok((program, remaining)) => {
             match remaining.len() {

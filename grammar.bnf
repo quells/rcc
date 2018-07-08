@@ -23,8 +23,8 @@ Part 3:
 Part 4:
 <program> ::= <function>
 <function> ::= "int" <id> "(" ")" "{" <statement> "}"
-<statement> ::= "return" <exp> ";"
-<exp> ::= <logical-and-exp> { "||" <logical-and-exp> }
+<statement> ::= "return" <logical-or-exp> ";"
+<logical-or-exp> ::= <logical-and-exp> { "||" <logical-and-exp> }
 <logical-and-exp> ::= <equality-exp> { "&&" <equality-exp> }
 <equality-exp> ::= <relational-exp> { ("!=" | "==") <relational-exp> }
 <relational-exp> ::= <additive-exp> { ("<" | ">" | "<=" | ">=") <additive-exp> }

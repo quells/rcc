@@ -15,7 +15,7 @@ impl fmt::Debug for Program {
 }
 
 pub enum Function {
-    IntVoid(String, Vec<Statement>), // identifier, statement
+    IntVoid(String, Vec<Statement>), // identifier, statements
 }
 impl fmt::Debug for Function {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -42,13 +42,13 @@ trait RecursiveHierarchy<P> {
 
 #[derive(Clone)]
 pub enum Expr {
-    Term(Box<Term>),
-    BinOp(Box<Term>, BinaryOp, Box<Term>),
+    LogicalAndExpr(Box<LogicalAndExpr>),
+    BinOp(Box<LogicalAndExpr>, BinaryOp, Box<LogicalAndExpr>),
 }
 impl fmt::Debug for Expr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &Expr::Term(ref t) => write!(f, "{:?}", t),
+            &Expr::LogicalAndExpr(ref t) => write!(f, "{:?}", t),
             &Expr::BinOp(ref a, ref op, ref b) => write!(f, "expr({:?}{:?}{:?})", a, op, b),
         }
     }
@@ -56,6 +56,107 @@ impl fmt::Debug for Expr {
 impl RecursiveHierarchy<Factor> for Expr {
     fn wrap_in_parent(&self) -> Factor {
         Factor::Expr(Box::new(self.clone()))
+    }
+}
+impl Expr {
+    fn wrap_in_child(&self) -> LogicalAndExpr {
+        self.wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent()
+    }
+}
+
+#[derive(Clone)]
+pub enum LogicalAndExpr {
+    EqualityExpr(Box<EqualityExpr>),
+    BinOp(Box<EqualityExpr>, BinaryOp, Box<EqualityExpr>),
+}
+impl fmt::Debug for LogicalAndExpr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &LogicalAndExpr::EqualityExpr(ref t) => write!(f, "{:?}", t),
+            &LogicalAndExpr::BinOp(ref a, ref op, ref b) => write!(f, "expr({:?}{:?}{:?})", a, op, b),
+        }
+    }
+}
+impl RecursiveHierarchy<Expr> for LogicalAndExpr {
+    fn wrap_in_parent(&self) -> Expr {
+        Expr::LogicalAndExpr(Box::new(self.clone()))
+    }
+}
+impl LogicalAndExpr {
+    fn wrap_in_child(&self) -> EqualityExpr {
+        self.wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent()
+    }
+}
+
+#[derive(Clone)]
+pub enum EqualityExpr {
+    RelationalExpr(Box<RelationalExpr>),
+    BinOp(Box<RelationalExpr>, BinaryOp, Box<RelationalExpr>),
+}
+impl fmt::Debug for EqualityExpr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &EqualityExpr::RelationalExpr(ref t) => write!(f, "{:?}", t),
+            &EqualityExpr::BinOp(ref a, ref op, ref b) => write!(f, "expr({:?}{:?}{:?})", a, op, b),
+        }
+    }
+}
+impl RecursiveHierarchy<LogicalAndExpr> for EqualityExpr {
+    fn wrap_in_parent(&self) -> LogicalAndExpr {
+        LogicalAndExpr::EqualityExpr(Box::new(self.clone()))
+    }
+}
+impl EqualityExpr {
+    fn wrap_in_child(&self) -> RelationalExpr {
+        self.wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent()
+    }
+}
+
+#[derive(Clone)]
+pub enum RelationalExpr {
+    AdditiveExpr(Box<AdditiveExpr>),
+    BinOp(Box<AdditiveExpr>, BinaryOp, Box<AdditiveExpr>),
+}
+impl fmt::Debug for RelationalExpr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &RelationalExpr::AdditiveExpr(ref t) => write!(f, "{:?}", t),
+            &RelationalExpr::BinOp(ref a, ref op, ref b) => write!(f, "expr({:?}{:?}{:?})", a, op, b),
+        }
+    }
+}
+impl RecursiveHierarchy<EqualityExpr> for RelationalExpr {
+    fn wrap_in_parent(&self) -> EqualityExpr {
+        EqualityExpr::RelationalExpr(Box::new(self.clone()))
+    }
+}
+impl RelationalExpr {
+    fn wrap_in_child(&self) -> AdditiveExpr {
+        self.wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent()
+    }
+}
+
+#[derive(Clone)]
+pub enum AdditiveExpr {
+    Term(Box<Term>),
+    BinOp(Box<Term>, BinaryOp, Box<Term>),
+}
+impl fmt::Debug for AdditiveExpr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &AdditiveExpr::Term(ref t) => write!(f, "{:?}", t),
+            &AdditiveExpr::BinOp(ref a, ref op, ref b) => write!(f, "expr({:?}{:?}{:?})", a, op, b),
+        }
+    }
+}
+impl RecursiveHierarchy<RelationalExpr> for AdditiveExpr {
+    fn wrap_in_parent(&self) -> RelationalExpr {
+        RelationalExpr::AdditiveExpr(Box::new(self.clone()))
+    }
+}
+impl AdditiveExpr {
+    fn wrap_in_child(&self) -> Term {
+        self.wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent()
     }
 }
 
@@ -72,9 +173,14 @@ impl fmt::Debug for Term {
         }
     }
 }
-impl RecursiveHierarchy<Expr> for Term {
-    fn wrap_in_parent(&self) -> Expr {
-        Expr::Term(Box::new(self.clone()))
+impl RecursiveHierarchy<AdditiveExpr> for Term {
+    fn wrap_in_parent(&self) -> AdditiveExpr {
+        AdditiveExpr::Term(Box::new(self.clone()))
+    }
+}
+impl Term {
+    fn wrap_in_child(&self) -> Factor {
+        self.wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent()
     }
 }
 
@@ -96,6 +202,11 @@ impl fmt::Debug for Factor {
 impl RecursiveHierarchy<Term> for Factor {
     fn wrap_in_parent(&self) -> Term {
         Term::Factor(Box::new(self.clone()))
+    }
+}
+impl Factor {
+    fn wrap_in_child(&self) -> Expr {
+        self.wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent()
     }
 }
 
@@ -121,6 +232,14 @@ pub enum BinaryOp {
     Subtraction,
     Multiplication,
     Division,
+    LogicalAnd,
+    LogicalOr,
+    Equals,
+    NotEqual,
+    LessThan,
+    LessThanOrEqual,
+    GreaterThan,
+    GreaterThanOrEqual,
 }
 impl fmt::Debug for BinaryOp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -129,6 +248,14 @@ impl fmt::Debug for BinaryOp {
             &BinaryOp::Subtraction => write!(f, "-"),
             &BinaryOp::Multiplication => write!(f, "*"),
             &BinaryOp::Division => write!(f, "/"),
+            &BinaryOp::LogicalAnd => write!(f, "&&"),
+            &BinaryOp::LogicalOr => write!(f, "||"),
+            &BinaryOp::Equals => write!(f, "=="),
+            &BinaryOp::NotEqual => write!(f, "!="),
+            &BinaryOp::LessThan => write!(f, "<"),
+            &BinaryOp::LessThanOrEqual => write!(f, "<="),
+            &BinaryOp::GreaterThan => write!(f, ">"),
+            &BinaryOp::GreaterThanOrEqual => write!(f, ">="),
         }
     }
 }
@@ -213,7 +340,9 @@ fn parse_term(tokens: &[Token]) -> Result<(Term, &[Token]), String> {
                                 match parse_factor(rest) {
                                     Ok((rhs, rest)) => {
                                         let mult = Term::BinOp(lhs, BinaryOp::Multiplication, Box::new(rhs));
-                                        lhs = Box::new(mult.wrap_in_parent().wrap_in_parent());
+                                        lhs = Box::new(mult.wrap_in_parent().wrap_in_parent()
+                                            .wrap_in_parent().wrap_in_parent()
+                                            .wrap_in_parent().wrap_in_parent());
                                         outer = rest;
                                     },
                                     Err(e) => return Err(format!("error matching *: {}", e)),
@@ -223,7 +352,9 @@ fn parse_term(tokens: &[Token]) -> Result<(Term, &[Token]), String> {
                                 match parse_factor(rest) {
                                     Ok((rhs, rest)) => {
                                         let div = Term::BinOp(lhs, BinaryOp::Division, Box::new(rhs));
-                                        lhs = Box::new(div.wrap_in_parent().wrap_in_parent());
+                                        lhs = Box::new(div.wrap_in_parent().wrap_in_parent()
+                                            .wrap_in_parent().wrap_in_parent()
+                                            .wrap_in_parent().wrap_in_parent());
                                         outer = rest;
                                     },
                                     Err(e) => return Err(format!("error matching /: {}", e)),
@@ -241,7 +372,7 @@ fn parse_term(tokens: &[Token]) -> Result<(Term, &[Token]), String> {
     }
 }
 
-fn parse_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), String> {
+fn parse_additive_expr(tokens: &[Token]) -> Result<(AdditiveExpr, &[Token]), String> {
     match parse_term(tokens) {
         Ok((lhs, mut outer)) => {
             let mut lhs = Box::new(lhs);
@@ -252,9 +383,9 @@ fn parse_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), String> {
                             Token::Plus => {
                                 match parse_term(rest) {
                                     Ok((_rhs, rest)) => {
-                                        let rhs = Box::new(_rhs.wrap_in_parent().wrap_in_parent().wrap_in_parent());
-                                        let add = Expr::BinOp(lhs, BinaryOp::Addition, rhs);
-                                        lhs = Box::new(add.wrap_in_parent().wrap_in_parent());
+                                        let rhs = Box::new(_rhs);
+                                        let add = AdditiveExpr::BinOp(lhs, BinaryOp::Addition, rhs);
+                                        lhs = Box::new(add.wrap_in_child());
                                         outer = rest;
                                     },
                                     Err(e) => return Err(format!("error matching +: {}", e)),
@@ -263,9 +394,9 @@ fn parse_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), String> {
                             Token::Minus => {
                                 match parse_term(rest) {
                                     Ok((_rhs, rest)) => {
-                                        let rhs = Box::new(_rhs.wrap_in_parent().wrap_in_parent().wrap_in_parent());
-                                        let sub = Expr::BinOp(lhs, BinaryOp::Subtraction, rhs);
-                                        lhs = Box::new(sub.wrap_in_parent().wrap_in_parent());
+                                        let rhs = Box::new(_rhs);
+                                        let sub = AdditiveExpr::BinOp(lhs, BinaryOp::Subtraction, rhs);
+                                        lhs = Box::new(sub.wrap_in_child());
                                         outer = rest;
                                     },
                                     Err(e) => return Err(format!("error matching -: {}", e)),
@@ -277,10 +408,26 @@ fn parse_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), String> {
                     None => break,
                 }
             }
-            Ok((Expr::Term(lhs), outer))
+            Ok((AdditiveExpr::Term(lhs), outer))
         },
         Err(e) => Err(e),
     }
+}
+
+fn parse_relational_expr(tokens: &[Token]) -> Result<(RelationalExpr, &[Token]), String> {
+    Err("relational expr here".to_string())
+}
+
+fn parse_equality_expr(tokens: &[Token]) -> Result<(EqualityExpr, &[Token]), String> {
+    Err("equality expr here".to_string())
+}
+
+fn parse_logical_and_expr(tokens: &[Token]) -> Result<(LogicalAndExpr, &[Token]), String> {
+    Err("logical and expr here".to_string())
+}
+
+fn parse_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), String> {
+    Err("expr here".to_string())
 }
 
 fn parse_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), String> {

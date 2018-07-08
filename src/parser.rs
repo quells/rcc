@@ -427,7 +427,34 @@ fn parse_logical_and_expr(tokens: &[DebugToken]) -> Result<(LogicalAndExpr, &[De
 }
 
 fn parse_logical_or_expr(tokens: &[DebugToken]) -> Result<(LogicalOrExpr, &[DebugToken]), String> {
-    Err("logical or expr here".to_string())
+    match parse_logical_and_expr(tokens) {
+        Ok((lhs, mut outer)) => {
+            let mut lhs = Box::new(lhs);
+            loop {
+                match eat(outer, Token::Pipe) {
+                    Ok(rest) => {
+                        match eat(rest, Token::Pipe) {
+                            Ok(rest) => {
+                                match parse_logical_and_expr(rest) {
+                                    Ok((_rhs, rest)) => {
+                                        let rhs = Box::new(_rhs);
+                                        let or = LogicalOrExpr::BinOp(lhs.clone(), BinaryOp::LogicalOr, rhs);
+                                        lhs = Box::new(or.wrap_in_child());
+                                        outer = rest;
+                                    },
+                                    Err(e) => return Err(e),
+                                }
+                            },
+                            Err(_) => break,
+                        }
+                    },
+                    Err(_) => break,
+                }
+            }
+            Ok((LogicalOrExpr::LogicalAndExpr(lhs.clone()), outer))
+        },
+        Err(e) => Err(e),
+    }
 }
 
 fn parse_statement(tokens: &[DebugToken]) -> Result<(Statement, &[DebugToken]), String> {

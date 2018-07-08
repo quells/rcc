@@ -423,7 +423,34 @@ fn parse_equality_expr(tokens: &[DebugToken]) -> Result<(EqualityExpr, &[DebugTo
 }
 
 fn parse_logical_and_expr(tokens: &[DebugToken]) -> Result<(LogicalAndExpr, &[DebugToken]), String> {
-    Err("logical and expr here".to_string())
+    match parse_equality_expr(tokens) {
+        Ok((lhs, mut outer)) => {
+            let mut lhs = Box::new(lhs);
+            loop {
+                match eat(outer, Token::Pipe) {
+                    Ok(rest) => {
+                        match eat(rest, Token::Pipe) {
+                            Ok(rest) => {
+                                match parse_equality_expr(rest) {
+                                    Ok((_rhs, rest)) => {
+                                        let rhs = Box::new(_rhs);
+                                        let or = LogicalAndExpr::BinOp(lhs, BinaryOp::LogicalAnd, rhs);
+                                        lhs = Box::new(or.wrap_in_child());
+                                        outer = rest;
+                                    },
+                                    Err(e) => return Err(e),
+                                }
+                            },
+                            Err(_) => break,
+                        }
+                    },
+                    Err(_) => break,
+                }
+            }
+            Ok((LogicalAndExpr::EqualityExpr(lhs), outer))
+        },
+        Err(e) => Err(e),
+    }
 }
 
 fn parse_logical_or_expr(tokens: &[DebugToken]) -> Result<(LogicalOrExpr, &[DebugToken]), String> {
@@ -438,7 +465,7 @@ fn parse_logical_or_expr(tokens: &[DebugToken]) -> Result<(LogicalOrExpr, &[Debu
                                 match parse_logical_and_expr(rest) {
                                     Ok((_rhs, rest)) => {
                                         let rhs = Box::new(_rhs);
-                                        let or = LogicalOrExpr::BinOp(lhs.clone(), BinaryOp::LogicalOr, rhs);
+                                        let or = LogicalOrExpr::BinOp(lhs, BinaryOp::LogicalOr, rhs);
                                         lhs = Box::new(or.wrap_in_child());
                                         outer = rest;
                                     },
@@ -451,7 +478,7 @@ fn parse_logical_or_expr(tokens: &[DebugToken]) -> Result<(LogicalOrExpr, &[Debu
                     Err(_) => break,
                 }
             }
-            Ok((LogicalOrExpr::LogicalAndExpr(lhs.clone()), outer))
+            Ok((LogicalOrExpr::LogicalAndExpr(lhs), outer))
         },
         Err(e) => Err(e),
     }

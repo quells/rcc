@@ -266,7 +266,7 @@ fn eat(tokens: &[DebugToken], expect: Token) -> Result<&[DebugToken], String> {
             if next.token == expect {
                 Ok(rest)
             } else {
-                Err(format!("found unexpected token `{:?}` near l{} c{}", next.token, next.line, next.character))
+                Err(format!("expected {:?}, found `{:?}` near l{} c{}", expect, next.token, next.line, next.character))
             }
         },
         None => Err(format!("{}", END_OF_TOKENS)),
@@ -448,7 +448,7 @@ fn parse_statement(tokens: &[DebugToken]) -> Result<(Statement, &[DebugToken]), 
     }
 }
 
-fn parse_statement_list(tokens: &[DebugToken]) -> (Vec<Statement>, &[DebugToken]) {
+fn parse_statement_list(tokens: &[DebugToken]) -> Result<(Vec<Statement>, &[DebugToken]), String> {
     let mut statements = Vec::new();
     let mut outer = tokens;
     loop {
@@ -457,10 +457,24 @@ fn parse_statement_list(tokens: &[DebugToken]) -> (Vec<Statement>, &[DebugToken]
                 statements.push(statement);
                 outer = rest;
             },
-            Err(_) => break,
+            Err(e) => {
+                match outer.split_first() {
+                    Some((next, rest)) => {
+                        match next.token {
+                            Token::RBrace => break,
+                            _ => {
+                                return Err(e);
+                            },
+                        }
+                    },
+                    None => {
+                        return Err(END_OF_TOKENS.to_string());
+                    },
+                }
+            },
         }
     }
-    (statements, outer)
+    Ok((statements, outer))
 }
 
 fn parse_function_parameters(tokens: &[DebugToken]) -> Result<((), &[DebugToken]), String> {
@@ -483,11 +497,15 @@ fn parse_function(tokens: &[DebugToken]) -> Result<(Function, &[DebugToken]), St
                                                 Ok(rest) => {
                                                     match eat(rest, Token::LBrace) {
                                                         Ok(rest) => {
-                                                            let (parsed_statements, rest) = parse_statement_list(rest);
-                                                            match eat(rest, Token::RBrace) {
-                                                                Ok(rest) => {
-                                                                    let parsed_function = Function::IntVoid(id.to_string(), parsed_statements);
-                                                                    Ok((parsed_function, rest))
+                                                            match parse_statement_list(rest) {
+                                                                Ok((parsed_statements, rest)) => {
+                                                                    match eat(rest, Token::RBrace) {
+                                                                        Ok(rest) => {
+                                                                            let parsed_function = Function::IntVoid(id.to_string(), parsed_statements);
+                                                                            Ok((parsed_function, rest))
+                                                                        },
+                                                                        Err(e) => Err(e),
+                                                                    }
                                                                 },
                                                                 Err(e) => Err(e),
                                                             }

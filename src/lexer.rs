@@ -30,6 +30,11 @@ pub enum Token {
     Slash,
     Tilde,
     Exclamation,
+    Ampersand,
+    Pipe,
+    Equals,
+    LessThan,
+    GreaterThan,
     LParen,
     RParen,
     LBrace,
@@ -50,6 +55,11 @@ impl fmt::Debug for Token {
             Token::Slash => write!(f, "<SLASH>"),
             Token::Tilde => write!(f, "<TILDE>"),
             Token::Exclamation => write!(f, "<EXCLAMATION>"),
+            Token::Ampersand => write!(f, "<AMPERSAND>"),
+            Token::Pipe => write!(f, "<PIPE>"),
+            Token::Equals => write!(f, "<EQUALS>"),
+            Token::LessThan => write!(f, "<LESSTHAN>"),
+            Token::GreaterThan => write!(f, "<GREATERTHAN>"),
             Token::LParen => write!(f, "<LPAREN>"),
             Token::RParen => write!(f, "<RPAREN>"),
             Token::LBrace => write!(f, "<LBrace>"),
@@ -80,6 +90,11 @@ pub fn lex(src: &[u8]) -> Vec<Token> {
     single_chars.insert(b'{', Token::LBrace);
     single_chars.insert(b'}', Token::RBrace);
     single_chars.insert(b'~', Token::Tilde);
+    single_chars.insert(b'&', Token::Ampersand);
+    single_chars.insert(b'|', Token::Pipe);
+    single_chars.insert(b'=', Token::Equals);
+    single_chars.insert(b'<', Token::LessThan);
+    single_chars.insert(b'>', Token::GreaterThan);
 
     for c in src.iter() {
         match single_chars.get(c) {

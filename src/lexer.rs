@@ -69,8 +69,28 @@ impl fmt::Debug for Token {
     }
 }
 
-pub fn lex(src: &[u8]) -> Vec<Token> {
-    let mut tokens: Vec<Token> = Vec::new();
+pub struct DebugToken {
+    pub token: Token,
+    pub line: usize,
+    pub character: usize,
+}
+impl DebugToken {
+    fn new(token: Token, line: usize, character: usize) -> DebugToken {
+        DebugToken{
+            token: token,
+            line: line,
+            character: character,
+        }
+    }
+}
+impl fmt::Debug for DebugToken {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "<{:?}, l{} c{}>", self.token, self.line, self.character)
+    }
+}
+
+pub fn lex(src: &[u8]) -> Vec<DebugToken> {
+    let mut tokens: Vec<DebugToken> = Vec::new();
     let mut buffer: Vec<u8> = Vec::new();
     let mut first_char_letter = false;
 
@@ -96,7 +116,11 @@ pub fn lex(src: &[u8]) -> Vec<Token> {
     single_chars.insert(b'<', Token::LessThan);
     single_chars.insert(b'>', Token::GreaterThan);
 
+    let mut linenumber = 1;
+    let mut charnumber = 0;
+
     for c in src.iter() {
+        charnumber += 1;
         match single_chars.get(c) {
             Some(single_char_token) => {
                 if buffer.len() > 0 {
@@ -104,13 +128,13 @@ pub fn lex(src: &[u8]) -> Vec<Token> {
                     let s = {str::from_utf8(&buf_copy).unwrap()};
                     if first_char_letter {
                         match s {
-                            "int" => tokens.push(Token::Keyword(KeywordToken::Int)),
-                            "return" => tokens.push(Token::Keyword(KeywordToken::Return)),
-                            _ => tokens.push(Token::Identifier(String::from(s))),
+                            "int" => tokens.push(DebugToken::new(Token::Keyword(KeywordToken::Int), linenumber, charnumber)),
+                            "return" => tokens.push(DebugToken::new(Token::Keyword(KeywordToken::Return), linenumber, charnumber)),
+                            _ => tokens.push(DebugToken::new(Token::Identifier(String::from(s)), linenumber, charnumber)),
                         }
                     } else {
                         if let Ok(n) = i32::from_str(s) {
-                            tokens.push(Token::Integer(n));
+                            tokens.push(DebugToken::new(Token::Integer(n), linenumber, charnumber));
                         } else {
                             panic!("could not tokenize integer: {}", s)
                         }
@@ -119,8 +143,14 @@ pub fn lex(src: &[u8]) -> Vec<Token> {
                     first_char_letter = false;
                 }
                 match single_char_token {
-                    &Token::Whitespace => (),
-                    _ => tokens.push((*single_char_token).clone()),
+                    &Token::Whitespace => {
+                        // new line
+                        if *c == 0x0A {
+                            linenumber += 1;
+                            charnumber = 0;
+                        }
+                    },
+                    _ => tokens.push(DebugToken::new((*single_char_token).clone(), linenumber, charnumber)),
                 }
             },
             None => {
@@ -132,7 +162,7 @@ pub fn lex(src: &[u8]) -> Vec<Token> {
                 } else if b'0' <= *c && *c <= b'9' {
                     buffer.push(*c);
                 } else {
-                    tokens.push(Token::Unknown(*c));
+                    tokens.push(DebugToken::new(Token::Unknown(*c), linenumber, charnumber));
                 }
             },
         }

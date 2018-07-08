@@ -40,7 +40,12 @@ fn main() {
         });
 
         if verbose { println!("Lexing {} characters", &characters.len()); }
-        let tokens = rcc::lexer::lex(&characters);
+        let debug_tokens = rcc::lexer::lex(&characters);
+        println!("{:?}", &debug_tokens);
+        let tokens: Vec<rcc::lexer::Token> = debug_tokens
+            .into_iter()
+            .map(|t| t.token )
+            .collect();
         
         println!("{:?}", tokens);
     } else if let Some(_) = matches.subcommand_matches("parse") {
@@ -51,7 +56,10 @@ fn main() {
         });
 
         if verbose { println!("Lexing {} characters", &characters.len()); }
-        let tokens = rcc::lexer::lex(&characters);
+        let tokens: Vec<rcc::lexer::Token> = rcc::lexer::lex(&characters)
+            .into_iter()
+            .map(|t| t.token )
+            .collect();
         if verbose { println!("{:?}", tokens); }
 
         if verbose { println!("Parsing {} tokens", &tokens.len()); }

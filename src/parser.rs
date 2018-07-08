@@ -36,6 +36,11 @@ impl fmt::Debug for Statement {
     }
 }
 
+trait RecursiveHierarchy<P> {
+    fn wrap_in_parent(&self) -> P;
+}
+
+#[derive(Clone)]
 pub enum Expr {
     Term(Box<Term>),
     BinOp(Box<Term>, BinaryOp, Box<Term>),
@@ -48,7 +53,13 @@ impl fmt::Debug for Expr {
         }
     }
 }
+impl RecursiveHierarchy<Factor> for Expr {
+    fn wrap_in_parent(&self) -> Factor {
+        Factor::Expr(Box::new(self.clone()))
+    }
+}
 
+#[derive(Clone)]
 pub enum Term {
     Factor(Box<Factor>),
     BinOp(Box<Factor>, BinaryOp, Box<Factor>),
@@ -61,7 +72,13 @@ impl fmt::Debug for Term {
         }
     }
 }
+impl RecursiveHierarchy<Expr> for Term {
+    fn wrap_in_parent(&self) -> Expr {
+        Expr::Term(Box::new(self.clone()))
+    }
+}
 
+#[derive(Clone)]
 pub enum Factor {
     Expr(Box<Expr>),
     UnOp(UnaryOp, Box<Factor>),
@@ -76,7 +93,13 @@ impl fmt::Debug for Factor {
         }
     }
 }
+impl RecursiveHierarchy<Term> for Factor {
+    fn wrap_in_parent(&self) -> Term {
+        Term::Factor(Box::new(self.clone()))
+    }
+}
 
+#[derive(Copy, Clone)]
 pub enum UnaryOp {
     Negation,
     BitwiseComplement,
@@ -92,6 +115,7 @@ impl fmt::Debug for UnaryOp {
     }
 }
 
+#[derive(Copy, Clone)]
 pub enum BinaryOp {
     Addition,
     Subtraction,
@@ -132,7 +156,7 @@ fn parse_factor(tokens: &[Token]) -> Result<(Factor, &[Token]), String> {
                             match remaining_tokens.split_first() {
                                 Some((next, rest)) => {
                                     match next {
-                                        Token::RParen => Ok((Factor::Expr(Box::new(inner)), rest)),
+                                        Token::RParen => Ok((inner.wrap_in_parent(), rest)),
                                         _ => Err(format!("could not parse factor. expected <RParen>, found {:?}", next)),
                                     }
                                 },
@@ -144,19 +168,28 @@ fn parse_factor(tokens: &[Token]) -> Result<(Factor, &[Token]), String> {
                 },
                 Token::Exclamation => {
                     match parse_factor(rest) {
-                        Ok((operand, remaining_tokens)) => Ok((Factor::UnOp(UnaryOp::LogicalNegation, Box::new(operand)), remaining_tokens)),
+                        Ok((operand, rest)) => {
+                            let op = UnaryOp::LogicalNegation;
+                            Ok((Factor::UnOp(op, Box::new(operand)), rest))
+                        },
                         Err(e) => Err(e),
                     }
                 },
                 Token::Tilde => {
                     match parse_factor(rest) {
-                        Ok((operand, remaining_tokens)) => Ok((Factor::UnOp(UnaryOp::BitwiseComplement, Box::new(operand)), remaining_tokens)),
+                        Ok((operand, rest)) => {
+                            let op = UnaryOp::BitwiseComplement;
+                            Ok((Factor::UnOp(op, Box::new(operand)), rest))
+                        },
                         Err(e) => Err(e),
                     }
                 },
                 Token::Minus => {
                     match parse_factor(rest) {
-                        Ok((operand, remaining_tokens)) => Ok((Factor::UnOp(UnaryOp::Negation, Box::new(operand)), remaining_tokens)),
+                        Ok((operand, rest)) => {
+                            let op = UnaryOp::Negation;
+                            Ok((Factor::UnOp(op, Box::new(operand)), rest))
+                        },
                         Err(e) => Err(e),
                     }
                 },
@@ -179,8 +212,8 @@ fn parse_term(tokens: &[Token]) -> Result<(Term, &[Token]), String> {
                             Token::Star => {
                                 match parse_factor(rest) {
                                     Ok((rhs, rest)) => {
-                                        let mult = Box::new(Term::BinOp(lhs, BinaryOp::Multiplication, Box::new(rhs)));
-                                        lhs = Box::new(Factor::Expr(Box::new(Expr::Term(mult))));
+                                        let mult = Term::BinOp(lhs, BinaryOp::Multiplication, Box::new(rhs));
+                                        lhs = Box::new(mult.wrap_in_parent().wrap_in_parent());
                                         outer = rest;
                                     },
                                     Err(e) => return Err(format!("error matching *: {}", e)),
@@ -189,8 +222,8 @@ fn parse_term(tokens: &[Token]) -> Result<(Term, &[Token]), String> {
                             Token::Slash => {
                                 match parse_factor(rest) {
                                     Ok((rhs, rest)) => {
-                                        let div = Box::new(Term::BinOp(lhs, BinaryOp::Division, Box::new(rhs)));
-                                        lhs = Box::new(Factor::Expr(Box::new(Expr::Term(div))));
+                                        let div = Term::BinOp(lhs, BinaryOp::Division, Box::new(rhs));
+                                        lhs = Box::new(div.wrap_in_parent().wrap_in_parent());
                                         outer = rest;
                                     },
                                     Err(e) => return Err(format!("error matching /: {}", e)),
@@ -218,10 +251,10 @@ fn parse_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), String> {
                         match next {
                             Token::Plus => {
                                 match parse_term(rest) {
-                                    Ok((rhs, rest)) => {
-                                        let __rhs = Term::Factor(Box::new(Factor::Expr(Box::new(Expr::Term(Box::new(rhs))))));
-                                        let add = Box::new(Expr::BinOp(lhs, BinaryOp::Addition, Box::new(__rhs)));
-                                        lhs = Box::new(Term::Factor(Box::new(Factor::Expr(add))));
+                                    Ok((_rhs, rest)) => {
+                                        let rhs = Box::new(_rhs.wrap_in_parent().wrap_in_parent().wrap_in_parent());
+                                        let add = Expr::BinOp(lhs, BinaryOp::Addition, rhs);
+                                        lhs = Box::new(add.wrap_in_parent().wrap_in_parent());
                                         outer = rest;
                                     },
                                     Err(e) => return Err(format!("error matching +: {}", e)),
@@ -229,10 +262,10 @@ fn parse_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), String> {
                             },
                             Token::Minus => {
                                 match parse_term(rest) {
-                                    Ok((rhs, rest)) => {
-                                        let __rhs = Term::Factor(Box::new(Factor::Expr(Box::new(Expr::Term(Box::new(rhs))))));
-                                        let sub = Box::new(Expr::BinOp(lhs, BinaryOp::Subtraction, Box::new(__rhs)));
-                                        lhs = Box::new(Term::Factor(Box::new(Factor::Expr(sub))));
+                                    Ok((_rhs, rest)) => {
+                                        let rhs = Box::new(_rhs.wrap_in_parent().wrap_in_parent().wrap_in_parent());
+                                        let sub = Expr::BinOp(lhs, BinaryOp::Subtraction, rhs);
+                                        lhs = Box::new(sub.wrap_in_parent().wrap_in_parent());
                                         outer = rest;
                                     },
                                     Err(e) => return Err(format!("error matching -: {}", e)),

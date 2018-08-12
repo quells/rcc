@@ -414,12 +414,86 @@ fn parse_additive_expr(tokens: &[DebugToken]) -> Result<(AdditiveExpr, &[DebugTo
     }
 }
 
+fn parse_relational_expr_closed(lhs: AdditiveExpr, gt: bool, rest: &[DebugToken]) -> Result<(RelationalExpr, &[DebugToken]), String> {
+    match rest.split_first() {
+        Some((next, inner)) => {
+            match next.token {
+                Token::Equals => {
+                    match parse_additive_expr(inner) {
+                        Ok((rhs, rest)) => {
+                            let op: BinaryOp;
+                            if gt { op = BinaryOp::GreaterThanOrEqual; } else { op = BinaryOp::LessThanOrEqual; }
+                            Ok((RelationalExpr::BinOp(Box::new(lhs), op, Box::new(rhs)), rest))
+                        },
+                        Err(e) => Err(e),
+                    }
+                },
+                _ => {
+                    match parse_additive_expr(inner) {
+                        Ok((rhs, rest)) => {
+                            let op: BinaryOp;
+                            if gt { op = BinaryOp::GreaterThan; } else { op = BinaryOp::LessThan; }
+                            Ok((RelationalExpr::BinOp(Box::new(lhs), op, Box::new(rhs)), rest))
+                        },
+                        Err(e) => Err(e),
+                    }
+                },
+            }
+        },
+        None => Err("error matching relational expr - unexpected end of token stream".to_string()),
+    }
+}
+
 fn parse_relational_expr(tokens: &[DebugToken]) -> Result<(RelationalExpr, &[DebugToken]), String> {
-    Err("relational expr here".to_string())
+    match parse_additive_expr(tokens) {
+        Ok((lhs, outer)) => {
+            match outer.split_first() {
+                Some((next, inner)) => {
+                    match next.token {
+                        Token::LessThan => parse_relational_expr_closed(lhs, false, inner),
+                        Token::GreaterThan => parse_relational_expr_closed(lhs, true, inner),
+                        _ => Ok((RelationalExpr::AdditiveExpr(Box::new(lhs)), outer)),
+                    }
+                },
+                None => Ok((RelationalExpr::AdditiveExpr(Box::new(lhs)), outer)),
+            }
+        },
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_equality_expr_rhs(lhs: RelationalExpr, eq: bool, tokens: &[DebugToken]) -> Result<(EqualityExpr, &[DebugToken]), String> {
+    match eat(tokens, Token::Equals) {
+        Ok(rest) => {
+            match parse_relational_expr(rest) {
+                Ok((rhs, rest)) => {
+                    let op: BinaryOp;
+                    if eq { op = BinaryOp::Equals; } else { op = BinaryOp::NotEqual; }
+                    Ok((EqualityExpr::BinOp(Box::new(lhs), op, Box::new(rhs)), rest))
+                },
+                Err(e) => Err(e),
+            }
+        },
+        Err(e) => Err(e),
+    }
 }
 
 fn parse_equality_expr(tokens: &[DebugToken]) -> Result<(EqualityExpr, &[DebugToken]), String> {
-    Err("equality expr here".to_string())
+    match parse_relational_expr(tokens) {
+        Ok((lhs, outer)) => {
+            match outer.split_first() {
+                Some((next, inner)) => {
+                    match next.token {
+                        Token::Equals => parse_equality_expr_rhs(lhs, true, inner),
+                        Token::Exclamation => parse_equality_expr_rhs(lhs, false, inner),
+                        _ => Ok((EqualityExpr::RelationalExpr(Box::new(lhs)), outer)),
+                    }
+                },
+                None => Ok((EqualityExpr::RelationalExpr(Box::new(lhs)), outer)),
+            }
+        },
+        Err(e) => Err(e),
+    }
 }
 
 fn parse_logical_and_expr(tokens: &[DebugToken]) -> Result<(LogicalAndExpr, &[DebugToken]), String> {

@@ -106,6 +106,7 @@ impl RecursiveHierarchy<LogicalAndExpr> for EqualityExpr {
         LogicalAndExpr::EqualityExpr(Box::new(self.clone()))
     }
 }
+#[allow(dead_code)]
 impl EqualityExpr {
     fn wrap_in_child(&self) -> RelationalExpr {
         self.wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent()
@@ -130,6 +131,7 @@ impl RecursiveHierarchy<EqualityExpr> for RelationalExpr {
         EqualityExpr::RelationalExpr(Box::new(self.clone()))
     }
 }
+#[allow(dead_code)]
 impl RelationalExpr {
     fn wrap_in_child(&self) -> AdditiveExpr {
         self.wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent()
@@ -178,6 +180,7 @@ impl RecursiveHierarchy<AdditiveExpr> for Term {
         AdditiveExpr::Term(Box::new(self.clone()))
     }
 }
+#[allow(dead_code)]
 impl Term {
     fn wrap_in_child(&self) -> Factor {
         self.wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent()
@@ -204,6 +207,7 @@ impl RecursiveHierarchy<Term> for Factor {
         Term::Factor(Box::new(self.clone()))
     }
 }
+#[allow(dead_code)]
 impl Factor {
     fn wrap_in_child(&self) -> LogicalOrExpr {
         self.wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent().wrap_in_parent()
@@ -587,7 +591,7 @@ fn parse_statement_list(tokens: &[DebugToken]) -> Result<(Vec<Statement>, &[Debu
             },
             Err(e) => {
                 match outer.split_first() {
-                    Some((next, rest)) => {
+                    Some((next, _)) => {
                         match next.token {
                             Token::RBrace => break,
                             _ => {
